@@ -73,6 +73,42 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   searchInput.addEventListener('input', (e)=> filterRows(e.target.value));
 
+  // Construieste HTML de tabel curat (fără rânduri / coloane complet goale)
+function sheetToCleanHTML(sheet) {
+  // ia datele ca matrice de matrice (fiecare rând = array)
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+
+  // determină ultima coloană care are conținut pe oricare rând
+  let lastCol = 0;
+  rows.forEach(r => {
+    for (let c = r.length - 1; c >= 0; c--) {
+      if (String(r[c]).trim() !== "") { lastCol = Math.max(lastCol, c + 1); break; }
+    }
+  });
+
+  // filtrează rândurile complet goale și taie coloanele goale din coadă
+  const clean = rows
+    .map(r => r.slice(0, lastCol))
+    .filter(r => r.some(v => String(v).trim() !== ""));
+
+  if (clean.length === 0) {
+    return '<div style="padding:16px;color:#64748b">Nu s-au găsit celule cu conținut în foaia selectată.</div>';
+  }
+
+  // prima linie ca header dacă pare “textuală”; altfel rămâne body
+  const [head, ...body] = clean;
+  const ths = head.map(v => `<th>${String(v)}</th>`).join("");
+  const trs = body.map(r => `<tr>${r.map(v => `<td>${String(v)}</td>`).join("")}</tr>`).join("");
+
+  return `
+    <table>
+      <thead><tr>${ths}</tr></thead>
+      <tbody>${trs}</tbody>
+    </table>
+  `;
+}
+
+  
   /* Render per secțiune */
   function renderWorkbook(section, wb){
     const tabs = document.getElementById(`tabs-${section}`);
