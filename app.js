@@ -179,26 +179,41 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // --- Arata foaia curenta
-  function showSheet(section, name) {
-    var out = document.getElementById("out-" + section);
-    var html = sheetToCleanHTML(workbooks[section].Sheets[name]);
-    out.innerHTML = html;
+ function showSheet(section, name){
+  const out = document.getElementById(`out-${section}`);
+  const sheet = workbooks[section].Sheets[name];
 
-    if (currentView === section) {
-      lastHTML = html;
-      saveBtn.disabled = !/table/i.test(html);
-    }
+  // 1) încercare: randare curată
+  let html = sheetToCleanHTML(sheet);
 
-    var table = out.querySelector("table");
-    if (table) {
-      table.style.display = "block";
-      table.style.overflow = "auto";
-      table.style.maxWidth = "100%";
-    }
-
-    if (currentView === section && searchInput.value) filterRows(searchInput.value);
-    out.scrollIntoView({ behavior: "instant", block: "start" });
+  // 2) fallback: randare clasică dacă nu există <table> sau e gol
+  if (!/<table/i.test(html) || html.length < 50) {
+    html = XLSX.utils.sheet_to_html(sheet, {
+      id: `excel-${section}`,
+      editable: false,
+      header: "",  // fără <head>/<body> injectate
+      footer: ""
+    });
   }
+
+  out.innerHTML = html;
+
+  if (currentView === section) {
+    lastHTML = html;
+    saveBtn.disabled = !/<table/i.test(html);
+  }
+
+  const table = out.querySelector('table');
+  if (table) {
+    table.style.display = 'block';
+    table.style.overflow = 'auto';
+    table.style.maxWidth = '100%';
+  }
+
+  if (currentView === section && searchInput.value) filterRows(searchInput.value);
+  out.scrollIntoView({ behavior: 'instant', block: 'start' });
+}
+
 
   // --- Upload robust (CSV + XLSX/XLS cu fallback)
   function parseFileFor(section, file) {
