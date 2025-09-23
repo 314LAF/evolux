@@ -1,7 +1,7 @@
 "use strict";
 
 document.addEventListener("DOMContentLoaded", function () {
-  // --- Elemente UI
+  // Elemente UI
   var menuBtn = document.getElementById("menuBtn");
   var drawer = document.getElementById("drawer");
   var homeBtn = document.getElementById("homeBtn");
@@ -11,6 +11,8 @@ document.addEventListener("DOMContentLoaded", function () {
   var fileInput = document.getElementById("file");
   var saveBtn = document.getElementById("saveHtml");
   var statusEl = document.getElementById("status");
+  var loadGsBtn = document.getElementById("loadGs");
+  var gsUrlInput = document.getElementById("gsUrl");
 
   function setStatus(msg, isErr) {
     if (isErr === void 0) isErr = false;
@@ -18,7 +20,7 @@ document.addEventListener("DOMContentLoaded", function () {
     statusEl.style.color = isErr ? "#b91c1c" : "var(--muted)";
   }
 
-  // --- Dark mode
+  // Dark mode
   var THEME_KEY = "app-theme";
   function applyTheme(t) {
     var isDark = t === "dark";
@@ -32,7 +34,7 @@ document.addEventListener("DOMContentLoaded", function () {
     applyTheme(next);
   });
 
-  // --- Stare
+  // Stare
   var historyStack = ["home"];
   var currentView = "home";
   var workbooks = { s1: null, s2: null, s3: null };
@@ -41,22 +43,17 @@ document.addEventListener("DOMContentLoaded", function () {
   function showView(id) {
     if (currentView !== id) historyStack.push(id);
     currentView = id;
-    Array.prototype.forEach.call(document.querySelectorAll(".view"), function (v) {
-      v.classList.remove("active");
-    });
+    Array.from(document.querySelectorAll(".view")).forEach(function (v) { v.classList.remove("active"); });
     document.getElementById(id).classList.add("active");
-    Array.prototype.forEach.call(document.querySelectorAll(".nav-link"), function (b) {
+    Array.from(document.querySelectorAll(".nav-link")).forEach(function (b) {
       b.classList.toggle("active", b.dataset.section === id);
     });
     saveBtn.disabled = !document.querySelector("#" + id + " .out table");
     searchInput.value = "";
   }
 
-  Array.prototype.forEach.call(document.querySelectorAll(".nav-link"), function (b) {
-    b.addEventListener("click", function () {
-      showView(b.dataset.section);
-      drawer.classList.remove("open");
-    });
+  Array.from(document.querySelectorAll(".nav-link")).forEach(function (b) {
+    b.addEventListener("click", function () { showView(b.dataset.section); drawer.classList.remove("open"); });
   });
 
   menuBtn.addEventListener("click", function () {
@@ -66,33 +63,27 @@ document.addEventListener("DOMContentLoaded", function () {
   });
   homeBtn.addEventListener("click", function () { showView("home"); });
   backBtn.addEventListener("click", function () {
-    if (historyStack.length > 1) {
-      historyStack.pop();
-      var prev = historyStack[historyStack.length - 1];
-      showView(prev);
-    }
+    if (historyStack.length > 1) { historyStack.pop(); showView(historyStack.at(-1)); }
   });
 
-  // --- Cautare + highlight
+  // Căutare + highlight
   function filterRows(query) {
     var container = document.querySelector("#" + currentView + " .out");
     var table = container && container.querySelector("table");
     if (!table) return;
     var q = query.trim().toLowerCase();
-    Array.prototype.forEach.call(table.querySelectorAll(".hit"), function (td) {
-      td.classList.remove("hit");
-    });
+    table.querySelectorAll(".hit").forEach(function (td) { td.classList.remove("hit"); });
     if (q === "") {
-      Array.prototype.forEach.call(table.tBodies, function (tb) {
-        Array.prototype.forEach.call(tb.rows, function (tr) { tr.style.display = ""; });
+      Array.from(table.tBodies).forEach(function (tb) {
+        Array.from(tb.rows).forEach(function (tr) { tr.style.display = ""; });
       });
       return;
     }
     var firstHitRow = null;
-    Array.prototype.forEach.call(table.tBodies, function (tb) {
-      Array.prototype.forEach.call(tb.rows, function (tr) {
+    Array.from(table.tBodies).forEach(function (tb) {
+      Array.from(tb.rows).forEach(function (tr) {
         var hit = false;
-        Array.prototype.forEach.call(tr.cells, function (td) {
+        Array.from(tr.cells).forEach(function (td) {
           var t = (td.textContent || "").toLowerCase();
           if (t.indexOf(q) !== -1) { hit = true; td.classList.add("hit"); }
         });
@@ -104,11 +95,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   searchInput.addEventListener("input", function (e) { filterRows(e.target.value); });
 
-  // --- Randare curata a foilor (detectie header + eliminare goluri)
+  // Randare curată (detecție header + eliminare goluri)
   function sheetToCleanHTML(sheet) {
     var rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-    // gaseste randul de header: macar 2 din 3 chei tipice
     var headerIdx = -1;
     for (var i = 0; i < rows.length; i++) {
       var keys = rows[i].map(function (v) { return String(v).trim().toLowerCase(); });
@@ -119,15 +109,12 @@ document.addEventListener("DOMContentLoaded", function () {
       for (var j = 0; j < rows.length; j++) {
         if (rows[j].some(function (v) { return String(v).trim() !== ""; })) { headerIdx = j; break; }
       }
-      if (headerIdx === -1) {
-        return '<div style="padding:16px;color:#64748b">Foaia nu conține celule cu text.</div>';
-      }
+      if (headerIdx === -1) return '<div style="padding:16px;color:#64748b">Foaia nu conține celule cu text.</div>';
     }
 
     var header = rows[headerIdx];
     var bodyRows = rows.slice(headerIdx + 1);
 
-    // ultima coloană cu continut in body
     var lastCol = header.length;
     bodyRows.forEach(function (r) {
       for (var c = r.length - 1; c >= 0; c--) {
@@ -145,9 +132,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function esc(s) {
-      return String(s).replace(/[&<>"]/g, function (m) {
-        return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" })[m];
-      });
+      return String(s).replace(/[&<>"]/g, function (m) { return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" })[m]; });
     }
 
     var ths = trimmedHeader.map(function (v) { return "<th>" + esc(v) + "</th>"; }).join("");
@@ -158,7 +143,7 @@ document.addEventListener("DOMContentLoaded", function () {
     return "<table><thead><tr>" + ths + "</tr></thead><tbody>" + trs + "</tbody></table>";
   }
 
-  // --- Render workbook
+  // Render workbook
   function renderWorkbook(section, wb) {
     var tabs = document.getElementById("tabs-" + section);
     tabs.innerHTML = "";
@@ -169,7 +154,7 @@ document.addEventListener("DOMContentLoaded", function () {
       b.className = "tab" + (idx === 0 ? " active" : "");
       b.textContent = name;
       b.onclick = function () {
-        Array.prototype.forEach.call(tabs.querySelectorAll(".tab"), function (t) { t.classList.remove("active"); });
+        Array.from(tabs.querySelectorAll(".tab")).forEach(function (t) { t.classList.remove("active"); });
         b.classList.add("active");
         showSheet(section, name);
       };
@@ -178,44 +163,37 @@ document.addEventListener("DOMContentLoaded", function () {
     showSheet(section, first);
   }
 
-  // --- Arata foaia curenta
- function showSheet(section, name){
-  const out = document.getElementById(`out-${section}`);
-  const sheet = workbooks[section].Sheets[name];
+  // Arată o foaie
+  function showSheet(section, name) {
+    var out = document.getElementById("out-" + section);
+    var sheet = workbooks[section].Sheets[name];
 
-  // 1) încercare: randare curată
-  let html = sheetToCleanHTML(sheet);
+    // randare curată
+    var html = sheetToCleanHTML(sheet);
+    // fallback clasic dacă nu a rezultat un <table>
+    if (!/<table/i.test(html) || html.length < 50) {
+      html = XLSX.utils.sheet_to_html(sheet, { id: "excel-" + section, editable: false, header: "", footer: "" });
+    }
 
-  // 2) fallback: randare clasică dacă nu există <table> sau e gol
-  if (!/<table/i.test(html) || html.length < 50) {
-    html = XLSX.utils.sheet_to_html(sheet, {
-      id: `excel-${section}`,
-      editable: false,
-      header: "",  // fără <head>/<body> injectate
-      footer: ""
-    });
+    out.innerHTML = html;
+
+    if (currentView === section) {
+      lastHTML = html;
+      saveBtn.disabled = !/<table/i.test(html);
+    }
+
+    var table = out.querySelector("table");
+    if (table) {
+      table.style.display = "block";
+      table.style.overflow = "auto";
+      table.style.maxWidth = "100%";
+    }
+
+    if (currentView === section && searchInput.value) filterRows(searchInput.value);
+    out.scrollIntoView({ behavior: "instant", block: "start" });
   }
 
-  out.innerHTML = html;
-
-  if (currentView === section) {
-    lastHTML = html;
-    saveBtn.disabled = !/<table/i.test(html);
-  }
-
-  const table = out.querySelector('table');
-  if (table) {
-    table.style.display = 'block';
-    table.style.overflow = 'auto';
-    table.style.maxWidth = '100%';
-  }
-
-  if (currentView === section && searchInput.value) filterRows(searchInput.value);
-  out.scrollIntoView({ behavior: 'instant', block: 'start' });
-}
-
-
-  // --- Upload robust (CSV + XLSX/XLS cu fallback)
+  // Upload local: CSV + XLSX/XLS (+fallback)
   function parseFileFor(section, file) {
     setStatus("Se încarcă: " + file.name + " …");
     var ext = (file.name.split(".").pop() || "").toLowerCase();
@@ -295,6 +273,48 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   });
 
+  // Google Sheets (CSV public)
+  function toCsvUrl(raw){
+    try{
+      var u = new URL(raw.trim());
+      if (u.pathname.includes("/gviz/tq") && (u.searchParams.get("tqx") || "").includes("out:csv")) return u.href;
+      var idm = u.href.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+      var gidm = (u.hash || "").match(/gid=(\d+)/);
+      var gid = gidm ? gidm[1] : "0";
+      if (idm) {
+        var id = idm[1];
+        return "https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq?tqx=out:csv&gid=" + gid;
+      }
+      return raw; // poate e deja CSV direct
+    }catch(_){ return raw; }
+  }
+
+  async function loadFromGoogle(section, url){
+    var csvUrl = toCsvUrl(url);
+    setStatus("Se încarcă din Google Sheets…");
+    try{
+      var res = await fetch(csvUrl, { cache: "no-store" });
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      var text = await res.text();
+      var wb = XLSX.read(text, { type:"string" });
+      workbooks[section] = wb;
+      renderWorkbook(section, wb);
+      showView(section);
+      setStatus("Încărcat din Google Sheets în " + section.toUpperCase());
+    }catch(err){
+      console.error(err);
+      setStatus("Nu am putut descărca CSV-ul. Verifică Publish to web și linkul.", true);
+    }
+  }
+
+  loadGsBtn.addEventListener("click", function(){
+    var url = (gsUrlInput.value || "").trim();
+    if(!url){ setStatus("Lipește link-ul foii sau CSV public.", true); return; }
+    var target = ["s1","s2","s3"].indexOf(currentView) !== -1 ? currentView : "s1";
+    loadFromGoogle(target, url);
+  });
+
+  // Export HTML
   saveBtn.addEventListener("click", function () {
     var htmlDoc = "<!doctype html><html lang=\"ro\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/><title>Tabel exportat</title><style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f3f4f6}</style></head><body>" + lastHTML + "</body></html>";
     var blob = new Blob([htmlDoc], { type: "text/html;charset=utf-8" });
