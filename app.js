@@ -136,14 +136,15 @@ function sheetToCleanHTML(sheet) {
     showSheet(section, first);
   }
 
-  function showSheet(section, name){
+  // ========= 2) showSheet: folosește randarea curată și elimină "golul" =========
+function showSheet(section, name){
   const out = document.getElementById(`out-${section}`);
 
-  // Folosește randarea “curată” în loc de sheet_to_html clasic
+  // Randare curată, fără <html><body> injectate
   const html = sheetToCleanHTML(workbooks[section].Sheets[name]);
   out.innerHTML = html;
 
-  if(currentView===section){ lastHTML = html; saveBtn.disabled = false; }
+  if(currentView===section){ lastHTML = html; saveBtn.disabled = !/table/i.test(html); }
 
   const table = out.querySelector('table');
   if(table){
@@ -151,6 +152,12 @@ function sheetToCleanHTML(sheet) {
     table.style.overflow = 'auto';
     table.style.maxWidth = '100%';
   }
+
+  if(currentView===section && searchInput.value) filterRows(searchInput.value);
+
+  // sari sus ca să vezi tabelul imediat
+  out.scrollIntoView({behavior:'instant', block:'start'});
+}
 
   if(currentView===section && searchInput.value) filterRows(searchInput.value);
 
