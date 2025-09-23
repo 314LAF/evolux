@@ -73,57 +73,49 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   searchInput.addEventListener('input', (e)=> filterRows(e.target.value));
 
-  // Construieste HTML de tabel curat (fără rânduri / coloane complet goale)
-// ========= 1) sheetToCleanHTML: găsește headerul corect și randează curat =========
-function sheetToCleanHTML(sheet) {
-  // Matrice de celule
-  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+  // ===== sheetToCleanHTML: detectează headerul și randează curat =====
+  function sheetToCleanHTML(sheet) {
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-  // Caut rândul de header: conține "Timestamp" și "MsgId"
-  let headerIdx = -1;
-  for (let i = 0; i < rows.length; i++) {
-    const vals = rows[i].map(v => String(v).trim());
-   const keys = vals.map(v => v.toLowerCase());
-const hits = ["timestamp","type","from"].filter(k => keys.includes(k)).length;
-if (hits >= 2) { headerIdx = i; break; }
-  }
-
-  // Dacă nu-l găsesc, cad înapoi pe prima linie nenulă ca header
-  if (headerIdx === -1) {
-    headerIdx = rows.findIndex(r => r.some(v => String(v).trim() !== ""));
-    if (headerIdx === -1) return '<div style="padding:16px;color:#64748b">Foaia nu conține celule cu text.</div>';
-  }
-
-  const header = rows[headerIdx];
-  const bodyRows = rows.slice(headerIdx + 1);
-
-  // Determină ultima coloană cu conținut în ORICARE rând de body
-  let lastCol = header.length;
-  bodyRows.forEach(r => {
-    for (let c = r.length - 1; c >= 0; c--) {
-      if (String(r[c]).trim() !== "") { lastCol = Math.max(lastCol, c + 1); break; }
+    // găsește rândul de header: are cel puțin 2 din 3: timestamp/type/from
+    let headerIdx = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const keys = rows[i].map(v => String(v).trim().toLowerCase());
+      const hits = ["timestamp","type","from"].filter(k => keys.includes(k)).length;
+      if (hits >= 2) { headerIdx = i; break; }
     }
-  });
+    if (headerIdx === -1) {
+      headerIdx = rows.findIndex(r => r.some(v => String(v).trim() !== ""));
+      if (headerIdx === -1) return '<div style="padding:16px;color:#64748b">Foaia nu conține celule cu text.</div>';
+    }
 
-  // Curăță coloanele și rândurile complet goale
-  const trimmedHeader = header.slice(0, lastCol);
-  const cleanRows = bodyRows
-    .map(r => r.slice(0, lastCol))
-    .filter(r => r.some(v => String(v).trim() !== ""));
+    const header = rows[headerIdx];
+    const bodyRows = rows.slice(headerIdx + 1);
 
-  if (cleanRows.length === 0) {
-    return '<div style="padding:16px;color:#64748b">Nu s-au găsit rânduri cu date sub header.</div>';
+    // ultima coloană cu conținut în body
+    let lastCol = header.length;
+    bodyRows.forEach(r => {
+      for (let c = r.length - 1; c >= 0; c--) {
+        if (String(r[c]).trim() !== "") { lastCol = Math.max(lastCol, c + 1); break; }
+      }
+    });
+
+    const trimmedHeader = header.slice(0, lastCol);
+    const cleanRows = bodyRows
+      .map(r => r.slice(0, lastCol))
+      .filter(r => r.some(v => String(v).trim() !== ""));
+
+    if (cleanRows.length === 0) {
+      return '<div style="padding:16px;color:#64748b">Nu s-au găsit rânduri cu date sub header.</div>';
+    }
+
+    const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+    const ths = trimmedHeader.map(v => `<th>${esc(v)}</th>`).join("");
+    const trs = cleanRows.map(r => `<tr>${r.map(v => `<td>${esc(v)}`).join("</td>")}</td></tr>`).join("");
+
+    return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
   }
 
-  // Generează HTML simplu
-  const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-  const ths = trimmedHeader.map(v => `<th>${esc(v)}</th>`).join("");
-  const trs = cleanRows.map(r => `<tr>${r.map(v => `<td>${esc(v)}`).join("</td>")}</td></tr>`).join("");
-
-  return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
-}
-
-  
   /* Render per secțiune */
   function renderWorkbook(section, wb){
     const tabs = document.getElementById(`tabs-${section}`);
@@ -138,34 +130,24 @@ if (hits >= 2) { headerIdx = i; break; }
     showSheet(section, first);
   }
 
-  // ========= 2) showSheet: folosește randarea curată și elimină "golul" =========
-function showSheet(section, name){
-  const out = document.getElementById(`out-${section}`);
+  // ===== showSheet: folosește randarea curată =====
+  function showSheet(section, name){
+    const out = document.getElementById(`out-${section}`);
+    const html = sheetToCleanHTML(workbooks[section].Sheets[name]);
+    out.innerHTML = html;
 
-  // Randare curată, fără <html><body> injectate
-  const html = sheetToCleanHTML(workbooks[section].Sheets[name]);
-  out.innerHTML = html;
+    if(currentView===section){ lastHTML = html; saveBtn.disabled = !/table/i.test(html); }
 
-  if(currentView===section){ lastHTML = html; saveBtn.disabled = !/table/i.test(html); }
+    const table = out.querySelector('table');
+    if(table){
+      table.style.display = 'block';
+      table.style.overflow = 'auto';
+      table.style.maxWidth = '100%';
+    }
 
-  const table = out.querySelector('table');
-  if(table){
-    table.style.display = 'block';
-    table.style.overflow = 'auto';
-    table.style.maxWidth = '100%';
+    if(currentView===section && searchInput.value) filterRows(searchInput.value);
+    out.scrollIntoView({behavior:'instant', block:'start'});
   }
-
-  if(currentView===section && searchInput.value) filterRows(searchInput.value);
-
-  // sari sus ca să vezi tabelul imediat
-  out.scrollIntoView({behavior:'instant', block:'start'});
-}
-
-  if(currentView===section && searchInput.value) filterRows(searchInput.value);
-
-  // sari sus ca să vezi tabelul imediat
-  out.scrollIntoView({behavior:'instant', block:'start'});
-}
 
   /* Upload robust: CSV + XLSX/XLS(XLSB/XLSM) cu fallback */
   function parseFileFor(section, file){
