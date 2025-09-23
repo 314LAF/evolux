@@ -124,19 +124,26 @@ function sheetToCleanHTML(sheet) {
   }
 
   function showSheet(section, name){
-    const out = document.getElementById(`out-${section}`);
-    // IMPORTANT: fără header/footer → evităm spațiul gol
-    const html = XLSX.utils.sheet_to_html(
-      workbooks[section].Sheets[name],
-      { id:`excel-${section}`, editable:false, header:"", footer:"" }
-    );
-    out.innerHTML = html;
-    if(currentView===section){ lastHTML = html; saveBtn.disabled = false; }
-    const table = out.querySelector('table');
-    if(table){ table.style.display='block'; table.style.overflow='auto'; table.style.maxWidth='100%'; }
-    if(currentView===section && searchInput.value) filterRows(searchInput.value);
-    out.scrollIntoView({behavior:'instant', block:'start'});
+  const out = document.getElementById(`out-${section}`);
+
+  // Folosește randarea “curată” în loc de sheet_to_html clasic
+  const html = sheetToCleanHTML(workbooks[section].Sheets[name]);
+  out.innerHTML = html;
+
+  if(currentView===section){ lastHTML = html; saveBtn.disabled = false; }
+
+  const table = out.querySelector('table');
+  if(table){
+    table.style.display = 'block';
+    table.style.overflow = 'auto';
+    table.style.maxWidth = '100%';
   }
+
+  if(currentView===section && searchInput.value) filterRows(searchInput.value);
+
+  // sari sus ca să vezi tabelul imediat
+  out.scrollIntoView({behavior:'instant', block:'start'});
+}
 
   /* Upload robust: CSV + XLSX/XLS(XLSB/XLSM) cu fallback */
   function parseFileFor(section, file){
