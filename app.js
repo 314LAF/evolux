@@ -74,38 +74,51 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput.addEventListener('input', (e)=> filterRows(e.target.value));
 
   // Construieste HTML de tabel curat (fără rânduri / coloane complet goale)
+// ========= 1) sheetToCleanHTML: găsește headerul corect și randează curat =========
 function sheetToCleanHTML(sheet) {
-  // ia datele ca matrice de matrice (fiecare rând = array)
+  // Matrice de celule
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-  // determină ultima coloană care are conținut pe oricare rând
-  let lastCol = 0;
-  rows.forEach(r => {
+  // Caut rândul de header: conține "Timestamp" și "MsgId"
+  let headerIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const vals = rows[i].map(v => String(v).trim());
+    if (vals.includes("Timestamp") && vals.includes("MsgId")) { headerIdx = i; break; }
+  }
+
+  // Dacă nu-l găsesc, cad înapoi pe prima linie nenulă ca header
+  if (headerIdx === -1) {
+    headerIdx = rows.findIndex(r => r.some(v => String(v).trim() !== ""));
+    if (headerIdx === -1) return '<div style="padding:16px;color:#64748b">Foaia nu conține celule cu text.</div>';
+  }
+
+  const header = rows[headerIdx];
+  const bodyRows = rows.slice(headerIdx + 1);
+
+  // Determină ultima coloană cu conținut în ORICARE rând de body
+  let lastCol = header.length;
+  bodyRows.forEach(r => {
     for (let c = r.length - 1; c >= 0; c--) {
       if (String(r[c]).trim() !== "") { lastCol = Math.max(lastCol, c + 1); break; }
     }
   });
 
-  // filtrează rândurile complet goale și taie coloanele goale din coadă
-  const clean = rows
+  // Curăță coloanele și rândurile complet goale
+  const trimmedHeader = header.slice(0, lastCol);
+  const cleanRows = bodyRows
     .map(r => r.slice(0, lastCol))
     .filter(r => r.some(v => String(v).trim() !== ""));
 
-  if (clean.length === 0) {
-    return '<div style="padding:16px;color:#64748b">Nu s-au găsit celule cu conținut în foaia selectată.</div>';
+  if (cleanRows.length === 0) {
+    return '<div style="padding:16px;color:#64748b">Nu s-au găsit rânduri cu date sub header.</div>';
   }
 
-  // prima linie ca header dacă pare “textuală”; altfel rămâne body
-  const [head, ...body] = clean;
-  const ths = head.map(v => `<th>${String(v)}</th>`).join("");
-  const trs = body.map(r => `<tr>${r.map(v => `<td>${String(v)}</td>`).join("")}</tr>`).join("");
+  // Generează HTML simplu
+  const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const ths = trimmedHeader.map(v => `<th>${esc(v)}</th>`).join("");
+  const trs = cleanRows.map(r => `<tr>${r.map(v => `<td>${esc(v)}`).join("</td>")}</td></tr>`).join("");
 
-  return `
-    <table>
-      <thead><tr>${ths}</tr></thead>
-      <tbody>${trs}</tbody>
-    </table>
-  `;
+  return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
 }
 
   
