@@ -44,14 +44,16 @@
         <button class="nav-link" data-section="s2">🚚💲 Curse spre XAR1</button>
         <button class="nav-link" data-section="s3">🚚💶 Curse intermodale</button>
       </nav>
+      <div class="drawer-controls">
+        <button id="backBtn" class="icon-btn" title="Înapoi">↩ Înapoi</button>
+        <button id="themeBtn" class="icon-btn" title="Dark/Light">🌙 Dark/Light</button>
+      </div>
     </aside>
 
     <header class="topbar">
       <div class="left">
         <button id="menuBtn" class="icon-btn" title="Meniu">☰</button>
         <button id="homeBtn" class="icon-btn" title="Acasă">🏠</button>
-        <button id="backBtn" class="icon-btn" title="Înapoi">↩</button>
-        <button id="themeBtn" class="icon-btn" title="Dark/Light">🌙</button>
         <h1>Vizualizator Excel</h1>
       </div>
       <div class="right">
@@ -128,7 +130,10 @@
   <style>
     /* layout nou */
     .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-    .drawer{background:#ffffff;border-right:1px solid rgba(0,0,0,.08);padding:16px;position:sticky;top:0;height:100vh}
+    .drawer{background:#ffffff;border-right:1px solid rgba(0,0,0,.08);padding:16px;position:sticky;top:0;height:100vh;transform:translateX(0);transition:transform .2s ease}
+    .drawer.closed{transform:translateX(-100%)}
+    .drawer-controls{display:flex;gap:8px;flex-direction:column;margin-top:12px}
+    .drawer-controls .icon-btn{text-align:left}
     .drawer-head{font-weight:700;margin-bottom:10px}
     .drawer-nav{display:flex;flex-direction:column;gap:8px}
     .nav-link{appearance:none;border:1px solid rgba(0,0,0,.08);background:#fff;padding:10px 12px;border-radius:12px;text-align:left;cursor:pointer}
@@ -158,6 +163,9 @@
 
     @media (max-width: 900px){
       .app{grid-template-columns:1fr}
+      .drawer{position:fixed;left:0;top:0;bottom:0;width:280px;z-index:20}
+      .drawer:not(.open){transform:translateX(-100%)}
+    }
       .drawer{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);transition:.2s;width:280px}
       .drawer.open{transform:translateX(0)}
     }
@@ -221,7 +229,13 @@
     })
 
     // Butoane topbar
-    menuBtn.addEventListener('click', ()=> drawer.classList.toggle('open'));
+    menuBtn.addEventListener('click', ()=>{
+      if (window.matchMedia('(max-width: 900px)').matches) {
+        drawer.classList.toggle('open');
+      } else {
+        drawer.classList.toggle('closed');
+      }
+    });
     homeBtn.addEventListener('click', ()=> showView('home'));
     backBtn.addEventListener('click', ()=>{
       if(historyStack.length>1){
@@ -307,7 +321,7 @@
 
     // Export HTML static al tabelului vizibil
     saveBtn.addEventListener('click', ()=>{
-      const htmlDoc = `<!doctype html><html lang="ro"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Tabel exportat</title><style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f3f4f6}</style></head><body>${lastHTML}</body></html>`;
+      const htmlDoc = `<!doctype html><html lang=\"ro\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/><title>Tabel exportat</title><style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f3f4f6}</style></head><body>${lastHTML}</body></html>`;
       const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
