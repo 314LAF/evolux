@@ -27,149 +27,8 @@
     th,td{border:1px solid rgba(0,0,0,.12);padding:8px;vertical-align:top}
     th{background:#f3f4f6}
     .hint{font-size:13px;color:var(--muted);padding:0 18px 18px}
-    .share{display:flex;gap:8px;align-items:center}
-    .small{font-size:12px;color:var(--muted)}
-  </style>
-  <!-- SheetJS (folosit doar în browser) -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-</head>
-<body>
-  <div class="app">
-    <aside class="drawer" id="drawer" aria-label="Meniu">
-      <div class="drawer-head">Meniu</div>
-      <nav class="drawer-nav">
-        <button class="nav-link" data-section="home">🏠 Acasă</button>
-        <hr>
-        <button class="nav-link" data-section="s1">📩 Chime S1–S52</button>
-        <button class="nav-link" data-section="s2">🚚💲 Curse spre XAR1</button>
-        <button class="nav-link" data-section="s3">🚚💶 Curse intermodale</button>
-      </nav>
-      <div class="drawer-controls">
-        <button id="backBtn" class="icon-btn" title="Înapoi">↩ Înapoi</button>
-        <button id="themeBtn" class="icon-btn" title="Dark/Light">🌙 Dark/Light</button>
-      </div>
-    </aside>
-
-    <header class="topbar">
-      <div class="left">
-        <button id="menuBtn" class="icon-btn" title="Meniu">☰</button>
-        <button id="homeBtn" class="icon-btn" title="Acasă">🏠</button>
-        <h1>Vizualizator Excel</h1>
-      </div>
-      <div class="right">
-        <div class="search">
-          <input id="searchInput" type="search" placeholder="Caută în tabelul curent…" />
-        </div>
-        <label class="btn" for="file">Încarcă Excel</label>
-        <input id="file" type="file" accept=".xlsx,.xls,.xlsb,.csv" hidden />
-        <button id="saveHtml" class="btn" title="Exportă tabelul vizibil" disabled>Salvează</button>
-      </div>
-    </header>
-
-    <main class="content">
-      <section id="home" class="view active">
-        <div class="wrap">
-          <div class="card">
-            <div class="intro">
-              <h2>Bun venit</h2>
-              <p>Această pagină poate găzdui <strong>3 secțiuni</strong> (liste/tabele). Alege o secțiune din meniu și încarcă un fișier Excel pentru fiecare, dacă dorești. Datele sunt procesate local, în browser.</p>
-              <ul>
-                <li>Buton <em>Încarcă Excel</em> — încarcă în secțiunea activă</li>
-                <li>Căutare — filtrează rândurile din tabelul vizibil</li>
-                <li>Înapoi — revine la secțiunea precedentă</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="s1" class="view">
-        <div class="wrap">
-          <div class="card">
-            <header class="subhead"><h2>📩 Chime S1–S52</h2></header>
-            <div id="drop-s1" class="drop">
-              <p>Trage fișierul aici sau folosește butonul „Încarcă Excel”.</p>
-              <p class="small">Acceptă .xlsx / .xls / .csv</p>
-            </div>
-            <div class="tabs" id="tabs-s1" hidden></div>
-            <div id="out-s1" class="out"></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="s2" class="view">
-        <div class="wrap">
-          <div class="card">
-            <header class="subhead"><h2>🚚💲 Curse spre XAR1</h2></header>
-            <div id="drop-s2" class="drop">
-              <p>Trage fișierul aici sau folosește butonul „Încarcă Excel”.</p>
-              <p class="small">Acceptă .xlsx / .xls / .csv</p>
-            </div>
-            <div class="tabs" id="tabs-s2" hidden></div>
-            <div id="out-s2" class="out"></div>
-          </div>
-        </div>
-      </section>
-
-      <section id="s3" class="view">
-        <div class="wrap">
-          <div class="card">
-            <header class="subhead"><h2>🚚💶 Curse intermodale</h2></header>
-            <div id="drop-s3" class="drop">
-              <p>Trage fișierul aici sau folosește butonul „Încarcă Excel”.</p>
-              <p class="small">Acceptă .xlsx / .xls / .csv</p>
-            </div>
-            <div class="tabs" id="tabs-s3" hidden></div>
-            <div id="out-s3" class="out"></div>
-          </div>
-        </div>
-      </section>
-    </main>
-  </div>
-
-  <style>
-    /* layout nou */
-    .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
-    .drawer{background:#ffffff;border-right:1px solid rgba(0,0,0,.08);padding:16px;position:sticky;top:0;height:100vh;transform:translateX(0);transition:transform .2s ease}
-    .drawer.closed{transform:translateX(-100%)}
-    .drawer-controls{display:flex;gap:8px;flex-direction:column;margin-top:12px}
-    .drawer-controls .icon-btn{text-align:left}
-    .drawer-head{font-weight:700;margin-bottom:10px}
-    .drawer-nav{display:flex;flex-direction:column;gap:8px}
-    .nav-link{appearance:none;border:1px solid rgba(0,0,0,.08);background:#fff;padding:10px 12px;border-radius:12px;text-align:left;cursor:pointer}
-    .nav-link.active,.nav-link:hover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.14) inset}
-
-    .topbar{position:sticky;top:0;z-index:10;background:#ffffff;border-bottom:1px solid rgba(0,0,0,.08);display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:10px}
-    .topbar h1{font-size:16px;margin:0}
-    .left{display:flex;align-items:center;gap:8px}
-    .right{display:flex;align-items:center;gap:8px}
-    .icon-btn{appearance:none;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer}
-    .icon-btn:hover{border-color:var(--accent)}
-    .search input{padding:8px 10px;border:1px solid rgba(0,0,0,.12);border-radius:10px;width:min(40vw,340px)}
-
-    .content{padding:12px}
-    .subhead{padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.08)}
-    .intro{padding:16px}
-
-    /* existente + mici ajustări */
-    .wrap{max-width:1100px;margin:12px auto;padding:0}
-    .card{background:var(--card);border:1px solid rgba(0,0,0,.08);border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.08);overflow:hidden}
-    .drop{border:2px dashed rgba(0,0,0,.16);border-radius:14px;margin:16px;display:grid;place-items:center;padding:28px;text-align:center;transition:.2s;background:#ffffff}
-    .drop.dragover{border-color:var(--accent);background:rgba(37,99,235,.06)}
-    .tabs{display:flex;gap:8px;overflow:auto;padding:10px 12px;border-bottom:1px solid rgba(0,0,0,.08);background:#ffffff}
-    .tab{white-space:nowrap;border:1px solid rgba(0,0,0,.12);padding:8px 12px;border-radius:999px;background:#f8fafc;cursor:pointer}
-    .tab.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.18) inset}
-    .out{padding:16px;overflow:auto;background:#ffffff}
-
-    @media (max-width: 900px){
-      .app{grid-template-columns:1fr}
-      .drawer{position:fixed;left:0;top:0;bottom:0;width:280px;z-index:20}
-      .drawer:not(.open){transform:translateX(-100%)}
-    }
-      .drawer{position:fixed;left:0;top:0;bottom:0;transform:translateX(-100%);transition:.2s;width:280px}
-      .drawer.open{transform:translateX(0)}
-    }
-  </style>
+    /* highlight pentru rezultate căutare */
+    .hit{outline:2px solid var(--accent); background:rgba(37,99,235,.12)}$1</style>
 
   <style>
     /* Dark mode overrides */
@@ -230,8 +89,13 @@
 
     // Butoane topbar
     menuBtn.addEventListener('click', ()=>{
-      if (window.matchMedia('(max-width: 900px)').matches) {
+      const isMobile = window.matchMedia('(max-width: 900px)').matches;
+      if (isMobile) {
         drawer.classList.toggle('open');
+      } else {
+        document.querySelector('.app').classList.toggle('nav-collapsed');
+      }
+    });
       } else {
         drawer.classList.toggle('closed');
       }
@@ -251,6 +115,28 @@
     // Căutare în tabelul vizibil
     function filterRows(query){
       const container = document.querySelector(`#${currentView} .out`);
+      const table = container?.querySelector('table');
+      if(!table) return;
+      const q = query.trim().toLowerCase();
+      // curățăm highlight-ul vechi
+      table.querySelectorAll('.hit').forEach(td=>td.classList.remove('hit'));
+      // dacă e gol, afișăm toate rândurile și ieșim
+      if(q===''){ Array.from(table.tBodies).forEach(tb=>Array.from(tb.rows).forEach(tr=>tr.style.display='')); return; }
+      let firstHitRow = null;
+      Array.from(table.tBodies).forEach(tb=>{
+        Array.from(tb.rows).forEach(tr=>{
+          let rowHit = false;
+          Array.from(tr.cells).forEach(td=>{
+            const t = (td.textContent||'').toLowerCase();
+            if(t.includes(q)){ rowHit = true; td.classList.add('hit'); }
+          });
+          tr.style.display = rowHit ? '' : 'none';
+          if(rowHit && !firstHitRow) firstHitRow = tr;
+        });
+      });
+      // du-te la primul rezultat
+      if(firstHitRow){ firstHitRow.scrollIntoView({behavior:'smooth', block:'center'}); }
+    } .out`);
       const table = container?.querySelector('table');
       if(!table) return;
       const q = query.trim().toLowerCase();
