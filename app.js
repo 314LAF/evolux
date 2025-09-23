@@ -83,7 +83,9 @@ function sheetToCleanHTML(sheet) {
   let headerIdx = -1;
   for (let i = 0; i < rows.length; i++) {
     const vals = rows[i].map(v => String(v).trim());
-    if (vals.includes("Timestamp") && vals.includes("MsgId")) { headerIdx = i; break; }
+   const keys = vals.map(v => v.toLowerCase());
+const hits = ["timestamp","type","from"].filter(k => keys.includes(k)).length;
+if (hits >= 2) { headerIdx = i; break; }
   }
 
   // Dacă nu-l găsesc, cad înapoi pe prima linie nenulă ca header
