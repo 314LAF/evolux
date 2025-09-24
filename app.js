@@ -1,328 +1,166 @@
 "use strict";
 
-document.addEventListener("DOMContentLoaded", function () {
-  // Elemente UI
-  var menuBtn = document.getElementById("menuBtn");
-  var drawer = document.getElementById("drawer");
-  var homeBtn = document.getElementById("homeBtn");
-  var backBtn = document.getElementById("backBtn");
-  var themeBtn = document.getElementById("themeBtn");
-  var searchInput = document.getElementById("searchInput");
-  var fileInput = document.getElementById("file");
-  var saveBtn = document.getElementById("saveHtml");
-  var statusEl = document.getElementById("status");
-  var loadGsBtn = document.getElementById("loadGs");
-  var gsUrlInput = document.getElementById("gsUrl");
-
-  function setStatus(msg, isErr) {
-    if (isErr === void 0) isErr = false;
-    statusEl.textContent = msg || "";
-    statusEl.style.color = isErr ? "#b91c1c" : "var(--muted)";
+// CSV -> array de rânduri (fără lib externe)
+function parseCSV(text) {
+  // parsat simplu care respectă ghilimele duble
+  const rows = [];
+  let row = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i], nxt = text[i+1];
+    if (inQ) {
+      if (ch === '"' && nxt === '"') { cur += '"'; i++; }
+      else if (ch === '"') { inQ = false; }
+      else { cur += ch; }
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === ',') { row.push(cur); cur = ""; }
+      else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ""; }
+      else if (ch === '\r') { /* ignore */ }
+      else { cur += ch; }
+    }
   }
+  row.push(cur);
+  rows.push(row);
+  // elimină rânduri complet goale
+  return rows.filter(r => r.some(v => String(v).trim() !== ""));
+}
 
-  // Dark mode
-  var THEME_KEY = "app-theme";
-  function applyTheme(t) {
-    var isDark = t === "dark";
-    document.body.classList.toggle("dark", isDark);
-    themeBtn.textContent = isDark ? "Light" : "Dark";
-  }
-  applyTheme(localStorage.getItem(THEME_KEY) || "light");
-  themeBtn.addEventListener("click", function () {
-    var next = document.body.classList.contains("dark") ? "light" : "dark";
-    localStorage.setItem(THEME_KEY, next);
-    applyTheme(next);
+function tableHTML(rows) {
+  if (!rows.length) return '<div style="padding:16px;color:#64748b">CSV gol.</div>';
+  const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const th = rows[0].map(v => `<th>${esc(v)}</th>`).join("");
+  const tb = rows.slice(1).map(r => `<tr>${r.map(v => `<td>${esc(v)}`).join("</td>")}</td></tr>`).join("");
+  return `<table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const statusEl = document.getElementById("status");
+  const q = document.getElementById("q");
+  const file = document.getElementById("file");
+  const urlIn = document.getElementById("url");
+  const loadUrl = document.getElementById("loadUrl");
+  const paste = document.getElementById("paste");
+  const loadText = document.getElementById("loadText");
+  const saveBtn = document.getElementById("saveHtml");
+  const themeBtn = document.getElementById("themeBtn");
+
+  const OUT = { s1: document.getElementById("out-s1"),
+                s2: document.getElementById("out-s2"),
+                s3: document.getElementById("out-s3") };
+  let current = "s1";
+  let lastHTML = "";
+  const DATA = { s1:null, s2:null, s3:null };
+
+  // dark mode
+  const KEY="csv-theme";
+  function apply(t){ const d=t==="dark"; document.body.classList.toggle("dark", d); themeBtn.textContent = d?"Light":"Dark"; }
+  apply(localStorage.getItem(KEY) || "light");
+  themeBtn.onclick = ()=>{ const n=document.body.classList.contains("dark")?"light":"dark"; localStorage.setItem(KEY,n); apply(n); };
+
+  function setStatus(msg, err=false){ statusEl.textContent = msg || ""; statusEl.style.color = err ? "#b91c1c" : "var(--muted)"; }
+
+  // schimbare secțiune
+  document.querySelectorAll(".tabbtn").forEach(b=>{
+    b.onclick = ()=>{
+      document.querySelectorAll(".tabbtn").forEach(x=>x.classList.remove("active"));
+      b.classList.add("active");
+      current = b.dataset.view;
+      q.value = "";
+      filter("");
+    };
   });
 
-  // Stare
-  var historyStack = ["home"];
-  var currentView = "home";
-  var workbooks = { s1: null, s2: null, s3: null };
-  var lastHTML = "";
-
-  function showView(id) {
-    if (currentView !== id) historyStack.push(id);
-    currentView = id;
-    Array.from(document.querySelectorAll(".view")).forEach(function (v) { v.classList.remove("active"); });
-    document.getElementById(id).classList.add("active");
-    Array.from(document.querySelectorAll(".nav-link")).forEach(function (b) {
-      b.classList.toggle("active", b.dataset.section === id);
-    });
-    saveBtn.disabled = !document.querySelector("#" + id + " .out table");
-    searchInput.value = "";
-  }
-
-  Array.from(document.querySelectorAll(".nav-link")).forEach(function (b) {
-    b.addEventListener("click", function () { showView(b.dataset.section); drawer.classList.remove("open"); });
-  });
-
-  menuBtn.addEventListener("click", function () {
-    var isMobile = window.matchMedia("(max-width: 900px)").matches;
-    if (isMobile) drawer.classList.toggle("open");
-    else document.querySelector(".app").classList.toggle("nav-collapsed");
-  });
-  homeBtn.addEventListener("click", function () { showView("home"); });
-  backBtn.addEventListener("click", function () {
-    if (historyStack.length > 1) { historyStack.pop(); showView(historyStack.at(-1)); }
-  });
-
-  // Căutare + highlight
-  function filterRows(query) {
-    var container = document.querySelector("#" + currentView + " .out");
-    var table = container && container.querySelector("table");
-    if (!table) return;
-    var q = query.trim().toLowerCase();
-    table.querySelectorAll(".hit").forEach(function (td) { td.classList.remove("hit"); });
-    if (q === "") {
-      Array.from(table.tBodies).forEach(function (tb) {
-        Array.from(tb.rows).forEach(function (tr) { tr.style.display = ""; });
-      });
+  // căutare
+  function filter(text){
+    const cont = OUT[current];
+    const table = cont.querySelector("table");
+    if(!table) return;
+    const ql = text.trim().toLowerCase();
+    table.querySelectorAll(".hit").forEach(td=>td.classList.remove("hit"));
+    if(ql===""){
+      Array.from(table.tBodies).forEach(tb=>Array.from(tb.rows).forEach(tr=>tr.style.display=""));
       return;
     }
-    var firstHitRow = null;
-    Array.from(table.tBodies).forEach(function (tb) {
-      Array.from(tb.rows).forEach(function (tr) {
-        var hit = false;
-        Array.from(tr.cells).forEach(function (td) {
-          var t = (td.textContent || "").toLowerCase();
-          if (t.indexOf(q) !== -1) { hit = true; td.classList.add("hit"); }
+    let first=null;
+    Array.from(table.tBodies).forEach(tb=>{
+      Array.from(tb.rows).forEach(tr=>{
+        let hit=false;
+        Array.from(tr.cells).forEach(td=>{
+          const t=(td.textContent||"").toLowerCase();
+          if(t.includes(ql)){ hit=true; td.classList.add("hit"); }
         });
         tr.style.display = hit ? "" : "none";
-        if (hit && !firstHitRow) firstHitRow = tr;
+        if(hit && !first) first = tr;
       });
     });
-    if (firstHitRow) firstHitRow.scrollIntoView({ behavior: "smooth", block: "center" });
+    if(first) first.scrollIntoView({behavior:"smooth", block:"center"});
   }
-  searchInput.addEventListener("input", function (e) { filterRows(e.target.value); });
+  q.oninput = e => filter(e.target.value);
 
-  // Randare curată (detecție header + eliminare goluri)
-  function sheetToCleanHTML(sheet) {
-    var rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-
-    var headerIdx = -1;
-    for (var i = 0; i < rows.length; i++) {
-      var keys = rows[i].map(function (v) { return String(v).trim().toLowerCase(); });
-      var hits = ["timestamp","type","from"].filter(function (k) { return keys.indexOf(k) !== -1; }).length;
-      if (hits >= 2) { headerIdx = i; break; }
-    }
-    if (headerIdx === -1) {
-      for (var j = 0; j < rows.length; j++) {
-        if (rows[j].some(function (v) { return String(v).trim() !== ""; })) { headerIdx = j; break; }
-      }
-      if (headerIdx === -1) return '<div style="padding:16px;color:#64748b">Foaia nu conține celule cu text.</div>';
-    }
-
-    var header = rows[headerIdx];
-    var bodyRows = rows.slice(headerIdx + 1);
-
-    var lastCol = header.length;
-    bodyRows.forEach(function (r) {
-      for (var c = r.length - 1; c >= 0; c--) {
-        if (String(r[c]).trim() !== "") { lastCol = Math.max(lastCol, c + 1); break; }
-      }
-    });
-
-    var trimmedHeader = header.slice(0, lastCol);
-    var cleanRows = bodyRows
-      .map(function (r) { return r.slice(0, lastCol); })
-      .filter(function (r) { return r.some(function (v) { return String(v).trim() !== ""; }); });
-
-    if (cleanRows.length === 0) {
-      return '<div style="padding:16px;color:#64748b">Nu s-au găsit rânduri cu date sub header.</div>';
-    }
-
-    function esc(s) {
-      return String(s).replace(/[&<>"]/g, function (m) { return ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" })[m]; });
-    }
-
-    var ths = trimmedHeader.map(function (v) { return "<th>" + esc(v) + "</th>"; }).join("");
-    var trs = cleanRows.map(function (r) {
-      return "<tr>" + r.map(function (v) { return "<td>" + esc(v) + "</td>"; }).join("") + "</tr>";
-    }).join("");
-
-    return "<table><thead><tr>" + ths + "</tr></thead><tbody>" + trs + "</tbody></table>";
-  }
-
-  // Render workbook
-  function renderWorkbook(section, wb) {
-    var tabs = document.getElementById("tabs-" + section);
-    tabs.innerHTML = "";
-    tabs.hidden = false;
-    var first = wb.SheetNames[0];
-    wb.SheetNames.forEach(function (name, idx) {
-      var b = document.createElement("button");
-      b.className = "tab" + (idx === 0 ? " active" : "");
-      b.textContent = name;
-      b.onclick = function () {
-        Array.from(tabs.querySelectorAll(".tab")).forEach(function (t) { t.classList.remove("active"); });
-        b.classList.add("active");
-        showSheet(section, name);
-      };
-      tabs.appendChild(b);
-    });
-    showSheet(section, first);
-  }
-
-  // Arată o foaie
-  function showSheet(section, name) {
-    var out = document.getElementById("out-" + section);
-    var sheet = workbooks[section].Sheets[name];
-
-    // randare curată
-    var html = sheetToCleanHTML(sheet);
-    // fallback clasic dacă nu a rezultat un <table>
-    if (!/<table/i.test(html) || html.length < 50) {
-      html = XLSX.utils.sheet_to_html(sheet, { id: "excel-" + section, editable: false, header: "", footer: "" });
-    }
-
-    out.innerHTML = html;
-
-    if (currentView === section) {
-      lastHTML = html;
-      saveBtn.disabled = !/<table/i.test(html);
-    }
-
-    var table = out.querySelector("table");
-    if (table) {
-      table.style.display = "block";
-      table.style.overflow = "auto";
-      table.style.maxWidth = "100%";
-    }
-
-    if (currentView === section && searchInput.value) filterRows(searchInput.value);
-    out.scrollIntoView({ behavior: "instant", block: "start" });
-  }
-
-  // Upload local: CSV + XLSX/XLS (+fallback)
-  function parseFileFor(section, file) {
-    setStatus("Se încarcă: " + file.name + " …");
-    var ext = (file.name.split(".").pop() || "").toLowerCase();
-
-    if (ext === "csv") {
-      var r = new FileReader();
-      r.onerror = function () { setStatus("Eroare la citirea fișierului.", true); };
-      r.onload = function (e) {
-        try {
-          var wb1 = XLSX.read(e.target.result, { type: "string" });
-          workbooks[section] = wb1;
-          renderWorkbook(section, wb1);
-          showView(section);
-          setStatus("Încărcat CSV în " + section.toUpperCase());
-        } catch (err) {
-          console.error(err);
-          setStatus("CSV invalid.", true);
-        }
-      };
-      r.readAsText(file);
-      return;
-    }
-
-    var reader = new FileReader();
-    reader.onerror = function () { setStatus("Eroare la citirea fișierului.", true); };
-    reader.onload = function (e) {
-      try {
-        var wb = XLSX.read(e.target.result, { type: "array" });
-        workbooks[section] = wb;
-        renderWorkbook(section, wb);
-        showView(section);
-        setStatus("Încărcat în " + section.toUpperCase());
-      } catch (err1) {
-        try {
-          var r2 = new FileReader();
-          r2.onload = function (e2) {
-            try {
-              var wb2 = XLSX.read(e2.target.result, { type: "binary" });
-              workbooks[section] = wb2;
-              renderWorkbook(section, wb2);
-              showView(section);
-              setStatus("Încărcat (fallback) în " + section.toUpperCase());
-            } catch (err2) {
-              console.error(err2);
-              setStatus("Nu am reușit să interpretez fișierul. Încearcă .xlsx/.xls/.csv.", true);
-            }
-          };
-          r2.readAsBinaryString(file);
-        } catch (e2) {
-          console.error(err1);
-          setStatus("Fișierul nu a putut fi procesat.", true);
-        }
-      }
+  // încărcare locală
+  file.onchange = e => {
+    const f = e.target.files?.[0]; if(!f) return;
+    setStatus("Se încarcă: " + f.name + " …");
+    const r = new FileReader();
+    r.onerror = ()=> setStatus("Eroare la citire.", true);
+    r.onload = ev => {
+      try{
+        const rows = parseCSV(ev.target.result);
+        DATA[current] = rows;
+        const html = tableHTML(rows);
+        OUT[current].innerHTML = html;
+        lastHTML = html;
+        saveBtn.disabled = !/table/i.test(html);
+        setStatus("Încărcat în " + current.toUpperCase());
+      }catch(err){ console.error(err); setStatus("CSV invalid.", true); }
     };
-    reader.readAsArrayBuffer(file);
-  }
-
-  fileInput.addEventListener("change", function (e) {
-    var f = e.target.files && e.target.files[0];
-    if (!f) return;
-    var target = ["s1","s2","s3"].indexOf(currentView) !== -1 ? currentView : "s1";
-    parseFileFor(target, f);
+    r.readAsText(f);
     e.target.value = "";
-  });
+  };
 
-  ["s1","s2","s3"].forEach(function (section) {
-    var drop = document.getElementById("drop-" + section);
-    ["dragenter","dragover"].forEach(function (ev) {
-      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add("dragover"); });
-    });
-    ["dragleave","drop"].forEach(function (ev) {
-      drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove("dragover"); });
-    });
-    drop.addEventListener("drop", function (e) {
-      var f = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (f) parseFileFor(section, f);
-    });
-  });
-
-  // Google Sheets (CSV public)
-  function toCsvUrl(raw){
+  // încărcare din URL (aceeași origine → /data/s1.csv etc.)
+  loadUrl.onclick = async ()=>{
+    const u = (urlIn.value||"").trim();
+    if(!u){ setStatus("Introdu un URL CSV.", true); return; }
+    setStatus("Se descarcă din URL…");
     try{
-      var u = new URL(raw.trim());
-      if (u.pathname.includes("/gviz/tq") && (u.searchParams.get("tqx") || "").includes("out:csv")) return u.href;
-      var idm = u.href.match(/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-      var gidm = (u.hash || "").match(/gid=(\d+)/);
-      var gid = gidm ? gidm[1] : "0";
-      if (idm) {
-        var id = idm[1];
-        return "https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq?tqx=out:csv&gid=" + gid;
-      }
-      return raw; // poate e deja CSV direct
-    }catch(_){ return raw; }
-  }
+      const res = await fetch(u, {cache:"no-store"});
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const txt = await res.text();
+      const rows = parseCSV(txt);
+      DATA[current] = rows;
+      const html = tableHTML(rows);
+      OUT[current].innerHTML = html;
+      lastHTML = html;
+      saveBtn.disabled = !/table/i.test(html);
+      setStatus("Încărcat din URL în " + current.toUpperCase());
+    }catch(err){ console.error(err); setStatus("Nu am putut descărca CSV-ul.", true); }
+  };
 
-  async function loadFromGoogle(section, url){
-    var csvUrl = toCsvUrl(url);
-    setStatus("Se încarcă din Google Sheets…");
+  // încărcare din text lipit
+  loadText.onclick = ()=>{
+    const t = (paste.value||"").trim();
+    if(!t){ setStatus("Lipește CSV în câmp.", true); return; }
     try{
-      var res = await fetch(csvUrl, { cache: "no-store" });
-      if(!res.ok) throw new Error("HTTP " + res.status);
-      var text = await res.text();
-      var wb = XLSX.read(text, { type:"string" });
-      workbooks[section] = wb;
-      renderWorkbook(section, wb);
-      showView(section);
-      setStatus("Încărcat din Google Sheets în " + section.toUpperCase());
-    }catch(err){
-      console.error(err);
-      setStatus("Nu am putut descărca CSV-ul. Verifică Publish to web și linkul.", true);
-    }
-  }
+      const rows = parseCSV(t);
+      DATA[current] = rows;
+      const html = tableHTML(rows);
+      OUT[current].innerHTML = html;
+      lastHTML = html;
+      saveBtn.disabled = !/table/i.test(html);
+      setStatus("Încărcat din text în " + current.toUpperCase());
+    }catch(err){ console.error(err); setStatus("CSV invalid.", true); }
+  };
 
-  loadGsBtn.addEventListener("click", function(){
-    var url = (gsUrlInput.value || "").trim();
-    if(!url){ setStatus("Lipește link-ul foii sau CSV public.", true); return; }
-    var target = ["s1","s2","s3"].indexOf(currentView) !== -1 ? currentView : "s1";
-    loadFromGoogle(target, url);
-  });
+  // export HTML
+  saveBtn.onclick = ()=>{
+    const htmlDoc = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Tabel</title><style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f3f4f6}</style></head><body>" + lastHTML + "</body></html>";
+    const blob = new Blob([htmlDoc], {type:"text/html;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = "tabel.html"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 1500);
+  };
 
-  // Export HTML
-  saveBtn.addEventListener("click", function () {
-    var htmlDoc = "<!doctype html><html lang=\"ro\"><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/><title>Tabel exportat</title><style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f3f4f6}</style></head><body>" + lastHTML + "</body></html>";
-    var blob = new Blob([htmlDoc], { type: "text/html;charset=utf-8" });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-    a.download = "tabel.html";
-    a.click();
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
-  });
+  // Hint: dacă există CSV-uri în repo, poți preîncărca:
+  // fetch("/evolux/data/s1.csv").then(r=>r.ok?r.text():Promise.reject()).then(t=>{ const rows=parseCSV(t); DATA.s1=rows; OUT.s1.innerHTML=tableHTML(rows); });
 });
