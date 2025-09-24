@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vizualizator CSV – Evolux</title>
+  <title>Evolux – Vizualizator CSV</title>
   <style>
     :root { --bg:#f5f7fb; --card:#ffffff; --text:#0b1220; --muted:#64748b; --accent:#2563eb; }
     *{box-sizing:border-box}
@@ -15,34 +15,41 @@
     .nav{display:flex;flex-direction:column;gap:8px;margin:10px 0}
     .nav button{appearance:none;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:12px;padding:10px;cursor:pointer;text-align:left}
     .nav button.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.15) inset}
-    .box{display:flex;flex-direction:column;gap:8px;margin-top:10px}
-    .btn, .icon{appearance:none;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:10px;padding:10px;cursor:pointer}
+    .btn{appearance:none;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:10px;padding:10px;cursor:pointer;width:100%}
     .btn:hover, .nav button:hover{border-color:var(--accent)}
-    input[type="url"], textarea{border:1px solid rgba(0,0,0,.12);border-radius:10px;padding:10px;width:100%}
-    textarea{min-height:80px;resize:vertical}
-    .status{font-size:12px;color:var(--muted)}
+    .status{font-size:12px;color:var(--muted);margin-top:8px}
 
     header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid rgba(0,0,0,.08);padding:10px;display:flex;justify-content:center}
-    .search input{padding:10px 14px;border:1px solid rgba(0,0,0,.12);border-radius:999px;width:min(42vw,520px)}
+    .searchbar{display:flex;gap:8px;align-items:center;width:min(90vw,900px)}
+    .searchbar input[type="search"]{flex:1;padding:10px 14px;border:1px solid rgba(0,0,0,.12);border-radius:999px}
+    .pill{min-width:76px;text-align:center;font-size:13px;color:var(--muted)}
+    .iconbtn{appearance:none;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer}
+    .iconbtn:disabled{opacity:.5;cursor:not-allowed}
+
     main{padding:12px}
     .card{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.08);overflow:hidden}
     .sub{padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.08)}
     .out{padding:16px;overflow:auto}
+
     table{width:100%;border-collapse:collapse}
     th,td{border:1px solid rgba(0,0,0,.12);padding:8px;vertical-align:top}
     th{background:#f3f4f6}
-    .hit{outline:2px solid var(--accent);background:rgba(37,99,235,.12)}
-    @media(max-width:900px){ .app{grid-template-columns:1fr} aside{position:static;height:auto} .search input{width:92vw} }
-
-    .view{display:none}
-    .view.active{display:block}
 
     .sep-row td{ background:#e5e7eb; height:10px; padding:0; border:none }
     .group-row td{ background:#eef2f7; font-weight:700; border-top:2px solid #cbd5e1 }
 
+    .hit{outline:2px solid var(--accent);background:rgba(37,99,235,.10)}
+    .focus{outline:3px solid var(--accent) !important;background:rgba(37,99,235,.18) !important}
+
+    @media(max-width:900px){ .app{grid-template-columns:1fr} aside{position:static;height:auto} .searchbar{width:95vw} }
+
+    .view{display:none}
+    .view.active{display:block}
+
+    /* Dark */
     body.dark{ background:#0b1220; color:#e7ecf3 }
     body.dark aside, body.dark header, body.dark .card{ background:#121a2b; border-color:rgba(255,255,255,.12) }
-    body.dark .btn, body.dark .nav button, body.dark input, body.dark textarea, body.dark .search input{ background:#0f1726; border-color:rgba(255,255,255,.12); color:#e7ecf3 }
+    body.dark .btn, body.dark .nav button, body.dark .searchbar input, body.dark .iconbtn{ background:#0f1726; border-color:rgba(255,255,255,.12); color:#e7ecf3 }
     body.dark th{ background:rgba(255,255,255,.06) }
     body.dark .status{ color:#a9b3c4 }
     body.dark .sep-row td{ background:#1f2937 }
@@ -53,7 +60,7 @@
   <div class="app">
     <aside>
       <div class="top">
-        <button id="themeBtn" class="icon">Dark</button>
+        <button id="themeBtn" class="btn" style="width:auto">Dark</button>
         <div class="h">Meniu</div>
       </div>
       <div class="nav">
@@ -62,23 +69,21 @@
         <button class="tabbtn" data-view="s3">Curse intermodale</button>
       </div>
 
-      <div class="box">
-        <label class="btn" for="file">Încarcă CSV</label>
-        <input id="file" type="file" accept=".csv" hidden />
-        <input id="url" type="url" placeholder="sau URL CSV (ex: ./data/s1.csv)"/>
-        <button id="loadUrl" class="btn">Încarcă din URL</button>
-        <textarea id="paste" placeholder="sau lipește CSV aici și apasă „Încarcă din text”"></textarea>
-        <button id="loadText" class="btn">Încarcă din text</button>
-        <button id="saveHtml" class="btn" disabled>Salvează HTML</button>
-        <button id="shareLink" class="btn">Generează link de share</button>
-        <button id="clearCache" class="btn">Șterge datele locale</button>
-      </div>
-
+      <!-- doar utilitare – am eliminat upload/URL/text/Save/Share -->
+      <button id="clearCache" class="btn">Șterge datele locale</button>
       <div id="status" class="status"></div>
     </aside>
 
     <div>
-      <header><div class="search"><input id="q" type="search" placeholder="Caută în tabelul curent…"></div></header>
+      <header>
+        <div class="searchbar">
+          <input id="q" type="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
+          <span id="qCount" class="pill">0/0</span>
+          <button id="qPrev" class="iconbtn" title="Anterior (Shift+Enter)">⬆︎</button>
+          <button id="qNext" class="iconbtn" title="Următor (Enter)">⬇︎</button>
+        </div>
+      </header>
+
       <main>
         <section id="s1" class="card view active">
           <div class="sub"><h3 style="margin:0">Chime S1–S52</h3></div>
@@ -98,7 +103,7 @@
     </div>
   </div>
 
-  <!-- cache-bust: crește numărul când faci update la app.js -->
-  <script defer src="./app.js?v=34"></script>
+  <!-- cache-bust: schimbă numărul când actualizezi app.js -->
+  <script defer src="./app.js?v=35"></script>
 </body>
 </html>
