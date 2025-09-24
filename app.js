@@ -34,18 +34,25 @@ function tableHTML(rows) {
     return c0.startsWith("##");
   };
 
-  // găsește headerul: primul rând care nu e gol/marker/titlu
+  // DETECȚIE HEADER SIGURĂ:
+  // 1) preferă rândul cu cuvinte-cheie (timestamp/type/from)
+  // 2) altfel primul rând cu >= 3 celule nenule
   let headerIdx = -1;
+  const hasKw = r => {
+    const keys = r.map(v => String(v).trim().toLowerCase());
+    const wanted = ["timestamp","type","from"];
+    return wanted.filter(w => keys.includes(w)).length >= 2;
+  };
   for (let i = 0; i < rows.length; i++) {
-    if (!isEmptyRow(rows[i]) && !isSepMarker(rows[i]) && !isGroupTitle(rows[i])) {
-      headerIdx = i; break;
-    }
+    const r = rows[i] || [];
+    if (isEmptyRow(r) || isSepMarker(r) || isGroupTitle(r)) continue;
+    const nonEmpty = r.filter(v => String(v ?? "").trim() !== "").length;
+    if (hasKw(r) || nonEmpty >= 3) { headerIdx = i; break; }
   }
   if (headerIdx === -1) return '<div style="padding:16px;color:#64748b">CSV gol.</div>';
 
   const header = rows[headerIdx].map(v => String(v ?? ""));
   const colCount = header.length;
-
   const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 
   const th = header.map(v => `<th>${esc(v)}</th>`).join("");
@@ -67,6 +74,7 @@ function tableHTML(rows) {
   }
   return `<table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
 }
+
 
 document.addEventListener("DOMContentLoaded", () => {
   const statusEl  = document.getElementById("status");
