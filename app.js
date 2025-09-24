@@ -194,24 +194,53 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   /* ——— LOAD din repo (implicit) ——— */
-  async function loadDefaultFromRepo(){
-    const defaults={ s1:"./data/s1.csv", s2:"./data/s2.csv", s3:"./data/s3.csv" };
-    const db = readCache();
-    for(const sec of ["s1","s2","s3"]){
-      try{
-        const res=await fetch(defaults[sec], {cache:"no-store"});
-        if(!res.ok) {
-          if(db[sec]?.csv){ OUT[sec].innerHTML = tableHTML(parseCSV(db[sec].csv), FORCED_HEADERS[sec] || null); }
-          continue;
+ /* ——— LOAD din repo (implicit) ——— */
+async function loadDefaultFromRepo(){
+  // Construim URL absolut, robust la /evolux/?v=xx, subfoldere etc.
+  const urlFor = (path) => new URL(path, location.href).toString();
+
+  // definim clar căile către CSV
+  const defaults = {
+    s1: urlFor('./data/s1.csv'),
+    s2: urlFor('./data/s2.csv'),
+    s3: urlFor('./data/s3.csv'),
+  };
+
+  const db = (function readCache(){ try{return JSON.parse(localStorage.getItem('csv-cache-v1')||'{}')}catch{return{}} })();
+
+  for (const sec of ['s1','s2','s3']) {
+    try {
+      console.log('[CSV] fetch', defaults[sec]);
+      const res = await fetch(defaults[sec], { cache: 'no-store' });
+      console.log('[CSV]', sec, 'status:', res.status);
+      if (!res.ok) {
+        // fallback la cache dacă există
+        if (db[sec]?.csv) {
+          OUT[sec].innerHTML = tableHTML(parseCSV(db[sec].csv), (sec==='s2' ? ["Timestamp","Type","Stop 1 Info","Route","Sender"] : null));
+        } else {
+          OUT[sec].innerHTML = '<div style="padding:16px;color:#64748b">Nu am putut încărca ' + sec.toUpperCase() + ' ('+res.status+').</div>';
         }
-        const txt=await res.text();
-        OUT[sec].innerHTML = tableHTML(parseCSV(txt), FORCED_HEADERS[sec] || null);
-        saveCSV(sec, txt);
-      }catch{
-        if(db[sec]?.csv) OUT[sec].innerHTML = tableHTML(parseCSV(db[sec].csv), FORCED_HEADERS[sec] || null);
+        continue;
+      }
+      const txt = await res.text();
+      OUT[sec].innerHTML = tableHTML(parseCSV(txt), (sec==='s2' ? ["Timestamp","Type","Stop 1 Info","Route","Sender"] : null));
+      // cache
+      try {
+        const cache = db || {};
+        cache[sec] = { csv: txt, ts: Date.now() };
+        localStorage.setItem('csv-cache-v1', JSON.stringify(cache));
+      } catch {}
+    } catch (e) {
+      console.error('[CSV]', sec, e);
+      if (db[sec]?.csv) {
+        OUT[sec].innerHTML = tableHTML(parseCSV(db[sec].csv), (sec==='s2' ? ["Timestamp","Type","Stop 1 Info","Route","Sender"] : null));
+      } else {
+        OUT[sec].innerHTML = '<div style="padding:16px;color:#64748b">Eroare la încărcare ' + sec.toUpperCase() + '.</div>';
       }
     }
   }
+}
+
 
   /* ——— SEARCH clasic: x/y + next/prev ——— */
   function runSearch(text){
