@@ -75,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const statusEl = document.getElementById("status");
   const themeBtn = document.getElementById("themeBtn");
   const clearBtn = document.getElementById("clearCache");
+  const pinBtn   = document.getElementById("pinBtn");
   const OUT = { s1:document.getElementById("out-s1"), s2:document.getElementById("out-s2"), s3:document.getElementById("out-s3") };
 
   const q = document.getElementById("q");
@@ -83,8 +84,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const qNext = document.getElementById("qNext");
 
   let current = "s1";
-  let matches = [];   // array de TD-uri care conțin hitul
-  let mIndex = -1;    // indexul curent
+  let matches = [];
+  let mIndex = -1;
 
   function setStatus(msg, err=false){ statusEl.textContent = msg || ""; statusEl.style.color = err ? "#b91c1c" : "var(--muted)"; }
 
@@ -100,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById(id).classList.add("active");
     document.querySelectorAll(".tabbtn").forEach(b=>b.classList.toggle("active", b.dataset.view===id));
     current=id;
-    runSearch(q.value);    // re-calculează hiturile pentru noua secțiune
+    runSearch(q.value);
   }
   document.querySelectorAll(".tabbtn").forEach(b=> b.onclick = ()=>show(b.dataset.view));
 
@@ -110,7 +111,67 @@ document.addEventListener("DOMContentLoaded", () => {
   const writeCache = obj => { try{localStorage.setItem(CACHE_KEY, JSON.stringify(obj))}catch{} };
   const saveCSV = (sec, text)=>{ const db=readCache(); db[sec]={csv:text,ts:Date.now()}; writeCache(db); };
 
-  clearBtn.onclick = ()=>{ localStorage.removeItem(CACHE_KEY); setStatus("Datele locale au fost șterse."); };
+  /* ——— ADMIN PIN (global) ——— */
+  const ADMIN_PIN = "2468";     // <<< setează PIN-ul tău aici
+  const PIN_KEY   = "csv-pin";  // (folosit doar dacă ADMIN_PIN e gol)
+  let failCount = 0;
+  let lockUntil = 0;
+  const now = () => Date.now();
+  const secs = ms => Math.ceil(ms/1000);
+
+  function checkOrCreateDevicePin() {
+    if (ADMIN_PIN) return true; // în mod organizație nu setăm local
+    let pin = localStorage.getItem(PIN_KEY);
+    if (!pin) {
+      const make = prompt("Creează un PIN (min 4 caractere) pentru acțiuni sensibile:");
+      if (!make || make.length < 4) { setStatus("PIN nu a fost setat.", true); return false; }
+      localStorage.setItem(PIN_KEY, make);
+      alert("PIN salvat pe acest dispozitiv.");
+    }
+    return true;
+  }
+
+  function verifyPinBefore(actionCb){
+    const remain = lockUntil - now();
+    if (remain > 0) { setStatus(`Blocat ${secs(remain)}s din cauza încercărilor greșite.`, true); return; }
+
+    if (!checkOrCreateDevicePin()) return;
+    const expected = ADMIN_PIN || localStorage.getItem(PIN_KEY) || "";
+    const typed = prompt("Introdu PIN-ul pentru a continua:");
+    if (typed === expected) {
+      failCount = 0;
+      actionCb();
+    } else {
+      failCount++;
+      if (failCount >= 3) {
+        lockUntil = now() + 30000; // 30s
+        failCount = 0;
+        setStatus("PIN greșit. Acțiunea este blocată 30s.", true);
+      } else {
+        setStatus("PIN greșit.", true);
+      }
+    }
+  }
+
+  clearBtn.onclick = ()=> verifyPinBefore(()=>{
+    localStorage.removeItem(CACHE_KEY);
+    setStatus("Datele locale au fost șterse.");
+  });
+
+  pinBtn.onclick = ()=>{
+    if (ADMIN_PIN) {
+      alert("Acest proiect folosește PIN organizație (ADMIN_PIN în app.js). Butonul nu poate schimba acest PIN.");
+      return;
+    }
+    const cur = localStorage.getItem(PIN_KEY) || "";
+    const next = prompt(cur ? "Schimbă PIN-ul (min 4 caractere):" : "Setează PIN (min 4 caractere):", "");
+    if (next && next.length >= 4) {
+      localStorage.setItem(PIN_KEY, next);
+      alert("PIN actualizat.");
+    } else if (next !== null) {
+      setStatus("PIN prea scurt. Nicio schimbare.", true);
+    }
+  };
 
   /* ——— LOAD din repo (implicit) ——— */
   async function loadDefaultFromRepo(){
@@ -131,12 +192,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   /* ——— SEARCH clasic: x/y + next/prev ——— */
   function runSearch(text){
-    // curăță vechile highlight-uri
     document.querySelectorAll(".hit").forEach(td=>td.classList.remove("hit","focus"));
-    matches = [];
-    mIndex = -1;
-    qCount.textContent = "0/0";
-    qPrev.disabled = qNext.disabled = true;
+    matches = []; mIndex = -1;
+    qCount.textContent = "0/0"; qPrev.disabled = qNext.disabled = true;
 
     const cont = OUT[current];
     const table = cont.querySelector("table"); if(!table) return;
@@ -144,7 +202,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const ql = (text||"").trim().toLowerCase();
     if(!ql){ return; }
 
-    // marchează toate potrivirile și le colectează
     Array.from(table.tBodies).forEach(tb=>{
       Array.from(tb.rows).forEach(tr=>{
         Array.from(tr.cells).forEach(td=>{
@@ -178,11 +235,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if(e.key === "Enter"){
       e.preventDefault();
       if(!matches.length) return;
-      if(e.shiftKey){ // previous
-        mIndex = (mIndex - 1 + matches.length) % matches.length;
-      } else {        // next
-        mIndex = (mIndex + 1) % matches.length;
-      }
+      if(e.shiftKey){ mIndex = (mIndex - 1 + matches.length) % matches.length; }
+      else          { mIndex = (mIndex + 1) % matches.length; }
       focusMatch(mIndex);
     }
   };
