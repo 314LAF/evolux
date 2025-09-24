@@ -1,6 +1,6 @@
 "use strict";
 
-// CSV parser (fără librării; suportă ghilimele duble)
+/* Parser CSV simplu (suport ghilimele duble) */
 function parseCSV(text) {
   const rows = [];
   let row = [], cur = "", inQ = false;
@@ -22,7 +22,7 @@ function parseCSV(text) {
   return rows;
 }
 
-// separatoare (#sep/---/— sau rând gol) + titluri de grup (##)
+/* Generează HTML: suportă #sep / rând gol și titluri ## */
 function tableHTML(rows) {
   const isEmptyRow = r => !r || r.every(v => String(v ?? "").trim() === "");
   const isSepMarker = r => {
@@ -35,8 +35,8 @@ function tableHTML(rows) {
   };
 
   // DETECȚIE HEADER SIGURĂ:
-  // 1) preferă rândul cu cuvinte-cheie (timestamp/type/from)
-  // 2) altfel primul rând cu >= 3 celule nenule
+  // 1) Preferă rândul cu cuvinte-cheie (timestamp/type/from)
+  // 2) Altfel primul rând cu >= 3 celule nenule
   let headerIdx = -1;
   const hasKw = r => {
     const keys = r.map(v => String(v).trim().toLowerCase());
@@ -53,7 +53,7 @@ function tableHTML(rows) {
 
   const header = rows[headerIdx].map(v => String(v ?? ""));
   const colCount = header.length;
-  const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+  const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&gt;','>':'&gt;','"':'&quot;'}[m]).hasOwnProperty(m)?({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]):m);
 
   const th = header.map(v => `<th>${esc(v)}</th>`).join("");
   let body = "";
@@ -75,7 +75,6 @@ function tableHTML(rows) {
   return `<table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-
 document.addEventListener("DOMContentLoaded", () => {
   const statusEl  = document.getElementById("status");
   const q         = document.getElementById("q");
@@ -93,9 +92,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let current = "s1";
   let lastHTML = "";
-  const URLS = { s1:"", s2:"", s3:"" }; // ultimele URL-uri încărcate
+  const URLS = { s1:"", s2:"", s3:"" };
 
-  // status
   function setStatus(msg, err=false){ statusEl.textContent = msg || ""; statusEl.style.color = err ? "#b91c1c" : "var(--muted)"; }
 
   // dark mode
@@ -104,7 +102,7 @@ document.addEventListener("DOMContentLoaded", () => {
   applyTheme(localStorage.getItem(THEME_KEY) || "light");
   themeBtn.onclick = ()=>{ const n=document.body.classList.contains("dark")?"light":"dark"; localStorage.setItem(THEME_KEY,n); applyTheme(n); };
 
-  // navigare secțiuni
+  // navigare
   function show(id){
     document.querySelectorAll(".view").forEach(s=>s.classList.remove("active"));
     document.getElementById(id).classList.add("active");
@@ -133,11 +131,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   q.oninput = e => filter(e.target.value);
 
-  // localStorage cache (text CSV per secțiune)
+  // localStorage cache (text CSV)
   const CACHE_KEY="csv-cache-v1", LAST_SEC_KEY="csv-last-section";
   const readCache = ()=>{ try{return JSON.parse(localStorage.getItem(CACHE_KEY)||"{}")}catch{return{}} };
   const writeCache = obj => { try{localStorage.setItem(CACHE_KEY, JSON.stringify(obj))}catch(e){ setStatus("Date prea mari pentru stocare locală.", true); } };
   const saveSectionCSV = (sec, text)=>{ const db=readCache(); db[sec]={csv:text,ts:Date.now()}; writeCache(db); };
+
   function restoreAllFromCache(){
     const db = readCache();
     ["s1","s2","s3"].forEach(sec=>{
@@ -166,8 +165,8 @@ document.addEventListener("DOMContentLoaded", () => {
     r.readAsText(f); e.target.value="";
   };
 
-  // încarcă din URL
-  loadUrl.onclick = async ()=>{
+  // din URL
+  document.getElementById("loadUrl").onclick = async ()=>{
     const u=(urlIn.value||"").trim(); if(!u){ setStatus("Introdu un URL CSV.", true); return; }
     setStatus("Se descarcă din URL…");
     try{
@@ -177,14 +176,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const html = tableHTML(rows);
       OUT[current].innerHTML=html; lastHTML=html; saveBtn.disabled=!/table/i.test(html);
       URLS[current]=u; localStorage.setItem("csv-last-url-"+current, u);
-      // opțional: salvează și textul CSV local (pt offline)
       saveSectionCSV(current, txt); localStorage.setItem(LAST_SEC_KEY,current);
       setStatus("Încărcat din URL în "+current.toUpperCase());
     }catch(err){ console.error(err); setStatus("Nu am putut descărca CSV-ul.", true); }
   };
 
-  // încarcă din text
-  loadText.onclick = ()=>{
+  // din text
+  document.getElementById("loadText").onclick = ()=>{
     const t=(paste.value||"").trim(); if(!t){ setStatus("Lipește CSV în câmp.", true); return; }
     try{
       const rows=parseCSV(t); const html=tableHTML(rows);
@@ -204,7 +202,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // clear cache
   clearBtn.onclick = ()=>{ localStorage.removeItem(CACHE_KEY); localStorage.removeItem(LAST_SEC_KEY); ["s1","s2","s3"].forEach(sec=>localStorage.removeItem("csv-last-url-"+sec)); setStatus("Datele locale au fost șterse."); };
 
-  // share link
+  // share
   shareBtn.onclick = async ()=>{
     const qp=new URLSearchParams();
     for(const sec of ["s1","s2","s3"]){ if(URLS[sec]) qp.set(sec, URLS[sec]); }
@@ -213,10 +211,10 @@ document.addEventListener("DOMContentLoaded", () => {
     catch{ prompt("Copiază linkul:", shareUrl); }
   };
 
-  // restaurare locală (opțional)
+  // restaurare locală
   restoreAllFromCache();
 
-  // auto-load din parametri de query (?s1=...&s2=...)
+  // auto din query (?s1=…&s2=…)
   (async function autoLoadFromQuery(){
     const p = new URLSearchParams(location.search);
     let usedQuery=false;
@@ -235,10 +233,10 @@ document.addEventListener("DOMContentLoaded", () => {
         URLS[sec] = localStorage.getItem("csv-last-url-"+sec) || "";
       }
     }
-    if(!usedQuery) await loadDefaultFromRepo(); // dacă nu s-au dat URL-uri, ia din /data
+    if(!usedQuery) await loadDefaultFromRepo(); // fără parametri → ia din /data
   })();
 
-  // auto-load din repo (/data/*.csv) când nu există parametri
+  // auto din repo
   async function loadDefaultFromRepo(){
     const defaults={ s1:"./data/s1.csv", s2:"./data/s2.csv", s3:"./data/s3.csv" };
     for(const sec of ["s1","s2","s3"]){
