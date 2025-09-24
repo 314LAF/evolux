@@ -3,100 +3,107 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Chime / XAR1 / Intermodale</title>
+  <title>Evolux – Vizualizator CSV</title>
   <style>
-    :root{
-      --bg:#f6f7fb; --card:#ffffff; --text:#0b1220; --muted:#6b7280; --accent:#2563eb;
-      --sep:#eef2f7; --group:#f8fafc; --hit:#fff4cc; --hitFocus:#fde68a;
-      --border: rgba(0,0,0,.10);
-    }
+    :root { --bg:#f5f7fb; --card:#ffffff; --text:#0b1220; --muted:#64748b; --accent:#2563eb; }
     *{box-sizing:border-box}
     body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh;gap:12px}
-    aside{background:var(--card);border-right:1px solid var(--border);padding:12px}
-    main{padding:16px}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 6px 16px rgba(0,0,0,.06);overflow:hidden}
-    .title{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700}
-    .toolbar{display:flex;align-items:center;gap:8px;justify-content:center;padding:10px;border-bottom:1px solid var(--border)}
-    .toolbar input{width:520px;max-width:70vw;border:1px solid var(--border);border-radius:999px;padding:10px 14px;outline:0}
-    .toolbar .count{font-size:12px;color:var(--muted);min-width:60px;text-align:center}
-    .btn, .tabbtn{appearance:none;border:1px solid var(--border);background:#fff;border-radius:10px;padding:9px 12px;cursor:pointer}
-    .btn:hover,.tabbtn:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.12)}
-    .tabbtn{width:100%;text-align:left;margin-bottom:8px}
-    .tabbtn.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.20) inset}
-    .stack{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-    .hint{font-size:12px;color:var(--muted);margin-top:8px}
-    .status{font-size:12px;color:var(--muted);margin-top:6px;min-height:18px}
+    .app{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+    aside{background:#fff;border-right:1px solid rgba(0,0,0,.08);padding:16px;position:sticky;top:0;height:100vh}
+    .top{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .h{font-weight:700}
+    .nav{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+    .nav button{appearance:none;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:12px;padding:10px;cursor:pointer;text-align:left}
+    .nav button.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.15) inset}
+    .btn{appearance:none;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:10px;padding:10px;cursor:pointer;width:100%}
+    .btn:hover, .nav button:hover{border-color:var(--accent)}
+    .status{font-size:12px;color:var(--muted);margin-top:8px}
 
-    /* views */
-    .view{display:none;padding:12px}
+    header{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid rgba(0,0,0,.08);padding:10px;display:flex;justify-content:center}
+    .searchbar{display:flex;gap:8px;align-items:center;width:min(90vw,900px)}
+    .searchbar input[type="search"]{flex:1;padding:10px 14px;border:1px solid rgba(0,0,0,.12);border-radius:999px}
+    .pill{min-width:76px;text-align:center;font-size:13px;color:var(--muted)}
+    .iconbtn{appearance:none;border:1px solid rgba(0,0,0,.12);background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer}
+    .iconbtn:disabled{opacity:.5;cursor:not-allowed}
+
+    main{padding:12px}
+    .card{background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.08);overflow:hidden}
+    .sub{padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.08)}
+    .out{padding:16px;overflow:auto}
+
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid rgba(0,0,0,.12);padding:8px;vertical-align:top}
+    th{background:#f3f4f6}
+
+    .sep-row td{ background:#e5e7eb; height:10px; padding:0; border:none }
+    .group-row td{ background:#eef2f7; font-weight:700; border-top:2px solid #cbd5e1 }
+
+    .hit{outline:2px solid var(--accent);background:rgba(37,99,235,.10)}
+    .focus{outline:3px solid var(--accent) !important;background:rgba(37,99,235,.18) !important}
+
+    @media(max-width:900px){ .app{grid-template-columns:1fr} aside{position:static;height:auto} .searchbar{width:95vw} }
+
+    .view{display:none}
     .view.active{display:block}
 
-    /* tables */
-    table{width:100%;border-collapse:collapse;font-size:14px}
-    th,td{border:1px solid var(--border);padding:8px;vertical-align:top}
-    th{background:#f3f4f6;position:sticky;top:0;z-index:1}
-    .sep-row td{background:var(--sep);height:10px;padding:0;border-top:0;border-bottom:0}
-    .group-row td{background:var(--group);font-weight:700}
-    .hit{background:var(--hit)}
-    .focus{background:var(--hitFocus) !important;outline:2px solid var(--accent)}
-
-    /* dark */
-    body.dark{--bg:#0f172a;--card:#0b1220;--text:#e5e7eb;--muted:#9ca3af;--border:rgba(255,255,255,.14);--sep:#111827;--group:#0f172a}
-    body.dark .btn, body.dark .tabbtn, body.dark .toolbar input{background:#0b1220;color:var(--text)}
+    /* Dark */
+    body.dark{ background:#0b1220; color:#e7ecf3 }
+    body.dark aside, body.dark header, body.dark .card{ background:#121a2b; border-color:rgba(255,255,255,.12) }
+    body.dark .btn, body.dark .nav button, body.dark .searchbar input, body.dark .iconbtn{ background:#0f1726; border-color:rgba(255,255,255,.12); color:#e7ecf3 }
+    body.dark th{ background:rgba(255,255,255,.06) }
+    body.dark .status{ color:#a9b3c4 }
+    body.dark .sep-row td{ background:#1f2937 }
+    body.dark .group-row td{ background:#182033; border-top-color:#314155 }
   </style>
 </head>
 <body>
   <div class="app">
-
     <aside>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <strong>Meniu</strong>
-        <button id="themeBtn" class="btn">Dark</button>
+      <div class="top">
+        <button id="themeBtn" class="btn" style="width:auto">Dark</button>
+        <div class="h">Meniu</div>
+      </div>
+      <div class="nav">
+        <button class="tabbtn active" data-view="s1">Chime S1–S52</button>
+        <button class="tabbtn" data-view="s2">Curse spre XAR1</button>
+        <button class="tabbtn" data-view="s3">Curse intermodale</button>
       </div>
 
-      <!-- Secțiuni -->
-      <button class="tabbtn active" data-view="s1">Chime S1–S52</button>
-      <button class="tabbtn" data-view="s2">Curse spre XAR1</button>
-      <button class="tabbtn" data-view="s3">Curse intermodale</button>
-
-      <div class="stack">
-        <button id="clearCache" class="btn">Șterge datele locale</button>
-        <button id="pinBtn" class="btn">Setează / schimbă PIN</button>
-        <div id="status" class="status"></div>
-      </div>
-
-      <div class="hint">Datele din pagină sunt încărcate din <code>/data/*.csv</code> din repo și se cache-ază pentru viteză.</div>
+      <!-- doar utilitare – am eliminat upload/URL/text/Save/Share -->
+      <button id="clearCache" class="btn">Șterge datele locale</button>
+      <div id="status" class="status"></div>
     </aside>
 
-    <main>
-      <div class="card">
-        <div class="title">Chime S1–S52 / XAR1 / Intermodale</div>
-
-        <!-- Toolbar de căutare -->
-        <div class="toolbar">
-          <button id="qPrev" class="btn" title="Previous match">◀</button>
-          <button id="qNext" class="btn" title="Next match">▶</button>
-          <span class="count" id="qCount">0/0</span>
-          <input id="q" type="search" placeholder="Caută în tabelul curent…" />
+    <div>
+      <header>
+        <div class="searchbar">
+          <input id="q" type="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
+          <span id="qCount" class="pill">0/0</span>
+          <button id="qPrev" class="iconbtn" title="Anterior (Shift+Enter)">⬆︎</button>
+          <button id="qNext" class="iconbtn" title="Următor (Enter)">⬇︎</button>
         </div>
+      </header>
 
-        <!-- Views -->
-        <section id="s1" class="view active">
-          <div id="out-s1" style="overflow:auto"></div>
+      <main>
+        <section id="s1" class="card view active">
+          <div class="sub"><h3 style="margin:0">Chime S1–S52</h3></div>
+          <div class="out" id="out-s1"></div>
         </section>
-        <section id="s2" class="view">
-          <div id="out-s2" style="overflow:auto"></div>
-        </section>
-        <section id="s3" class="view">
-          <div id="out-s3" style="overflow:auto"></div>
-        </section>
-      </div>
-    </main>
 
+        <section id="s2" class="card view">
+          <div class="sub"><h3 style="margin:0">Curse spre XAR1</h3></div>
+          <div class="out" id="out-s2"></div>
+        </section>
+
+        <section id="s3" class="card view">
+          <div class="sub"><h3 style="margin:0">Curse intermodale</h3></div>
+          <div class="out" id="out-s3"></div>
+        </section>
+      </main>
+    </div>
   </div>
 
-  <!-- Script (cache-bust v=36) -->
-  <script defer src="./app.js?v=36"></script>
+  <!-- cache-bust: schimbă numărul când actualizezi app.js -->
+  <script defer src="./app.js?v=35"></script>
 </body>
 </html>
