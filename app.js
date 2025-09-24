@@ -1,301 +1,205 @@
-"use strict";
+(function(){
+  // ---------- Utilitare UI ----------
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  const byId = id => document.getElementById(id);
 
-/* ——— Util: parsare CSV (ghilimele duble suportate) ——— */
-function parseCSV(text) {
-  const rows = [];
-  let row = [], cur = "", inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i], nx = text[i+1];
-    if (inQ) {
-      if (ch === '"' && nx === '"') { cur += '"'; i++; }
-      else if (ch === '"') { inQ = false; }
-      else { cur += ch; }
-    } else {
-      if (ch === '"') inQ = true;
-      else if (ch === ',') { row.push(cur); cur = ""; }
-      else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ""; }
-      else if (ch !== '\r') { cur += ch; }
-    }
+  const OUT = { s1: byId('out-s1'), s2: byId('out-s2'), s3: byId('out-s3') };
+
+  // ---------- Theme ----------
+  const THEME_KEY = 'viewer-theme';
+  function applyTheme(t){
+    document.body.classList.toggle('dark', t === 'dark');
+    byId('themeBtn').textContent = document.body.classList.contains('dark') ? 'Light' : 'Dark';
   }
-  row.push(cur); rows.push(row);
-  return rows;
-}
-
-/* ——— Rander tabel (suport #sep / rând gol și titlu ##); poate primi header forțat ——— */
-function tableHTML(rows, forcedHeader /* array or null */) {
-  const isEmptyRow = r => !r || r.every(v => String(v ?? "").trim() === "");
-  const isSepMarker = r => {
-    const c0 = String((r && r[0]) ?? "").trim().replace(/^["']|["']$/g, "").toLowerCase();
-    return c0 === "#sep" || c0 === "---" || c0 === "—";
-  };
-  const isGroupTitle = r => {
-    const c0 = String((r && r[0]) ?? "").trim().replace(/^["']|["']$/g, "");
-    return c0.startsWith("##");
-  };
-
-  // găsire header (când NU e forțat): preferă rând cu "timestamp/type/from" sau primul cu >=3 celule nenule
-  let headerIdx = -1;
-  if (!forcedHeader) {
-    const hasKw = r => {
-      const keys = r.map(v => String(v).trim().toLowerCase());
-      return ["timestamp","type","from"].filter(k => keys.includes(k)).length >= 2;
-    };
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i] || [];
-      if (isEmptyRow(r) || isSepMarker(r) || isGroupTitle(r)) continue;
-      const nonEmpty = r.filter(v => String(v ?? "").trim() !== "").length;
-      if (hasKw(r) || nonEmpty >= 3) { headerIdx = i; break; }
-    }
-  } else {
-    // dacă headerul e forțat, caută un rând cu suficiente celule ca start de date; dacă nu, folosim primul rând „plauzibil” ca headerIdx doar ca ancoră
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i] || [];
-      if (isEmptyRow(r) || isSepMarker(r)) continue;
-      // prima linie care NU e separatoare devine "headerIdx" (datele încep după ea)
-      headerIdx = i;
-      break;
-    }
-    if (headerIdx === -1) headerIdx = 0;
-  }
-
-  if (headerIdx === -1) return '<div style="padding:16px;color:#64748b">CSV gol.</div>';
-
-  const header = forcedHeader ? forcedHeader.slice() : rows[headerIdx].map(v => String(v ?? ""));
-  const colCount = header.length;
-  const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-
-  const th = header.map(v => `<th>${esc(v)}</th>`).join("");
-  let body = "";
-  for (let i = headerIdx + 1; i < rows.length; i++) {
-    const r = rows[i] || [];
-    if (isEmptyRow(r) || isSepMarker(r)) {
-      body += `<tr class="sep-row"><td colspan="${colCount}"></td></tr>`;
-      continue;
-    }
-    if (isGroupTitle(r)) {
-      const title = String(r[0] ?? "").replace(/^##\s*/, "");
-      body += `<tr class="group-row"><td colspan="${colCount}">${esc(title)}</td></tr>`;
-      continue;
-    }
-    // taie/padează fiecare rând la numărul de coloane din header
-    const cells = [];
-    for (let c = 0; c < colCount; c++) cells.push(`<td>${esc(r[c] ?? "")}</td>`);
-    body += `<tr>${cells.join("")}</tr>`;
-  }
-  return `<table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  const statusEl = document.getElementById("status");
-  const themeBtn = document.getElementById("themeBtn");
-  const clearBtn = document.getElementById("clearCache");
-  const pinBtn   = document.getElementById("pinBtn");
-  const OUT = { s1:document.getElementById("out-s1"), s2:document.getElementById("out-s2"), s3:document.getElementById("out-s3") };
-
-  const q = document.getElementById("q");
-  const qCount = document.getElementById("qCount");
-  const qPrev = document.getElementById("qPrev");
-  const qNext = document.getElementById("qNext");
-
-  let current = "s1";
-  let matches = [];
-  let mIndex = -1;
-
-  function setStatus(msg, err=false){ statusEl.textContent = msg || ""; statusEl.style.color = err ? "#b91c1c" : "var(--muted)"; }
-
-  /* ——— DARK MODE ——— */
-  const THEME_KEY="csv-theme";
-  function applyTheme(t){ const d=t==="dark"; document.body.classList.toggle("dark", d); themeBtn.textContent=d?"Light":"Dark"; }
-  applyTheme(localStorage.getItem(THEME_KEY) || "light");
-  themeBtn.onclick = ()=>{ const n=document.body.classList.contains("dark")?"light":"dark"; localStorage.setItem(THEME_KEY,n); applyTheme(n); };
-
-  /* ——— NAV ——— */
-  function show(id){
-    document.querySelectorAll(".view").forEach(s=>s.classList.remove("active"));
-    document.getElementById(id).classList.add("active");
-    document.querySelectorAll(".tabbtn").forEach(b=>b.classList.toggle("active", b.dataset.view===id));
-    current=id;
-    runSearch(q.value);
-  }
-  document.querySelectorAll(".tabbtn").forEach(b=> b.onclick = ()=>show(b.dataset.view));
-
-  /* ——— CACHE (localStorage) ——— */
-  const CACHE_KEY="csv-cache-v1";
-  const readCache = ()=>{ try{return JSON.parse(localStorage.getItem(CACHE_KEY)||"{}")}catch{return{}} };
-  const writeCache = obj => { try{localStorage.setItem(CACHE_KEY, JSON.stringify(obj))}catch{} };
-  const saveCSV = (sec, text)=>{ const db=readCache(); db[sec]={csv:text,ts:Date.now()}; writeCache(db); };
-
-  /* ——— ADMIN PIN (global) ——— */
-  const ADMIN_PIN = "2468";     // <<< schimbă aici PIN-ul de admin
-  const PIN_KEY   = "csv-pin";  // (nefolosit când ADMIN_PIN are valoare)
-  let failCount = 0;
-  let lockUntil = 0;
-  const now = () => Date.now();
-  const secs = ms => Math.ceil(ms/1000);
-
-  function checkOrCreateDevicePin() {
-    if (ADMIN_PIN) return true;
-    let pin = localStorage.getItem(PIN_KEY);
-    if (!pin) {
-      const make = prompt("Creează un PIN (min 4 caractere) pentru acțiuni sensibile:");
-      if (!make || make.length < 4) { setStatus("PIN nu a fost setat.", true); return false; }
-      localStorage.setItem(PIN_KEY, make);
-      alert("PIN salvat pe acest dispozitiv.");
-    }
-    return true;
-  }
-
-  function verifyPinBefore(actionCb){
-    const remain = lockUntil - now();
-    if (remain > 0) { setStatus(`Blocat ${secs(remain)}s din cauza încercărilor greșite.`, true); return; }
-
-    if (!checkOrCreateDevicePin()) return;
-    const expected = ADMIN_PIN || localStorage.getItem(PIN_KEY) || "";
-    const typed = prompt("Introdu PIN-ul pentru a continua:");
-    if (typed === expected) {
-      failCount = 0;
-      actionCb();
-    } else {
-      failCount++;
-      if (failCount >= 3) {
-        lockUntil = now() + 30000; // 30s
-        failCount = 0;
-        setStatus("PIN greșit. Acțiunea este blocată 30s.", true);
-      } else {
-        setStatus("PIN greșit.", true);
-      }
-    }
-  }
-
-  clearBtn.onclick = ()=> verifyPinBefore(()=>{
-    localStorage.removeItem(CACHE_KEY);
-    setStatus("Datele locale au fost șterse.");
+  applyTheme(localStorage.getItem(THEME_KEY) || 'light');
+  byId('themeBtn').addEventListener('click', ()=>{
+    const next = document.body.classList.contains('dark') ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, next); applyTheme(next);
   });
 
-  pinBtn.onclick = ()=>{
-    if (ADMIN_PIN) {
-      alert("Proiectul folosește PIN organizație (ADMIN_PIN în app.js). Butonul nu poate schimba acest PIN.");
-      return;
-    }
-    const cur = localStorage.getItem(PIN_KEY) || "";
-    const next = prompt(cur ? "Schimbă PIN-ul (min 4 caractere):" : "Setează PIN (min 4 caractere):", "");
-    if (next && next.length >= 4) {
-      localStorage.setItem(PIN_KEY, next);
-      alert("PIN actualizat.");
-    } else if (next !== null) {
-      setStatus("PIN prea scurt. Nicio schimbare.", true);
-    }
+  // ---------- Navigare secțiuni ----------
+  let current = 's1';
+  $$('.nav').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      current = b.dataset.sec;
+      $$('.nav').forEach(x=>x.classList.toggle('active', x===b));
+      $$('.section').forEach(sec=>sec.classList.toggle('active', sec.id===current));
+      // resetează căutarea pe schimbare
+      byId('search').value=''; clearHits();
+    });
+  });
+  // marchează default
+  $$('.nav')[0].classList.add('active');
+
+  // ---------- CSV loader din /data ----------
+  const PATH = {
+    s1: new URL('./data/s1.csv', location).toString(),
+    s2: new URL('./data/s2.csv', location).toString(),
+    s3: new URL('./data/s3.csv', location).toString(),
   };
 
-  /* ——— HEADER FORȚAT pentru S2 ——— */
-  const FORCED_HEADERS = {
-    s2: ["Timestamp","Type","Stop 1 Info","Route","Sender"]
-    // s1 și s3 rămân auto-detectate
-  };
+  const CACHE_KEY = 'csv-cache-v1';
+  const cache = (function(){ try{return JSON.parse(localStorage.getItem(CACHE_KEY)||'{}')}catch{return{}} })();
 
-  /* ——— LOAD din repo (implicit) ——— */
- /* ——— LOAD din repo (implicit) ——— */
-async function loadDefaultFromRepo(){
-  // Construim URL absolut, robust la /evolux/?v=xx, subfoldere etc.
-  const urlFor = (path) => new URL(path, location.href).toString();
-
-  // definim clar căile către CSV
-  const defaults = {
-    s1: urlFor('./data/s1.csv'),
-    s2: urlFor('./data/s2.csv'),
-    s3: urlFor('./data/s3.csv'),
-  };
-
-  const db = (function readCache(){ try{return JSON.parse(localStorage.getItem('csv-cache-v1')||'{}')}catch{return{}} })();
-
-  for (const sec of ['s1','s2','s3']) {
+  function saveCache(sec, txt){
     try {
-      console.log('[CSV] fetch', defaults[sec]);
-      const res = await fetch(defaults[sec], { cache: 'no-store' });
-      console.log('[CSV]', sec, 'status:', res.status);
-      if (!res.ok) {
-        // fallback la cache dacă există
-        if (db[sec]?.csv) {
-          OUT[sec].innerHTML = tableHTML(parseCSV(db[sec].csv), (sec==='s2' ? ["Timestamp","Type","Stop 1 Info","Route","Sender"] : null));
-        } else {
-          OUT[sec].innerHTML = '<div style="padding:16px;color:#64748b">Nu am putut încărca ' + sec.toUpperCase() + ' ('+res.status+').</div>';
-        }
-        continue;
-      }
+      const db = cache || {};
+      db[sec] = { csv: txt, ts: Date.now() };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(db));
+    } catch {}
+  }
+
+  async function loadSec(sec, lockedHeader){
+    const url = PATH[sec];
+    try{
+      console.log('[CSV] fetch', url);
+      const res = await fetch(url, {cache:'no-store'});
+      console.log('[CSV]', sec, 'status', res.status);
+      if(!res.ok) throw new Error('HTTP '+res.status);
       const txt = await res.text();
-      OUT[sec].innerHTML = tableHTML(parseCSV(txt), (sec==='s2' ? ["Timestamp","Type","Stop 1 Info","Route","Sender"] : null));
-      // cache
-      try {
-        const cache = db || {};
-        cache[sec] = { csv: txt, ts: Date.now() };
-        localStorage.setItem('csv-cache-v1', JSON.stringify(cache));
-      } catch {}
-    } catch (e) {
-      console.error('[CSV]', sec, e);
-      if (db[sec]?.csv) {
-        OUT[sec].innerHTML = tableHTML(parseCSV(db[sec].csv), (sec==='s2' ? ["Timestamp","Type","Stop 1 Info","Route","Sender"] : null));
-      } else {
-        OUT[sec].innerHTML = '<div style="padding:16px;color:#64748b">Eroare la încărcare ' + sec.toUpperCase() + '.</div>';
+      const rows = parseCSV(txt);
+      const html = renderCleanTable(rows, lockedHeader);
+      OUT[sec].innerHTML = html;
+      saveCache(sec, txt);
+    }catch(err){
+      console.warn('[CSV] fallback local', sec, err);
+      if(cache[sec]?.csv){
+        const rows = parseCSV(cache[sec].csv);
+        OUT[sec].innerHTML = renderCleanTable(rows, lockedHeader);
+      }else{
+        OUT[sec].innerHTML = `<div class="note">Nu am putut încărca ${sec.toUpperCase()} (${err.message}).</div>`;
       }
     }
   }
-}
 
+  // S1: detectăm header în fișier (poate avea titlu pe primul rând)
+  loadSec('s1', null);
+  // S2: „lock” header exact: Timestamp, Type, Stop 1 Info, Route, Sender
+  loadSec('s2', ["Timestamp","Type","Stop 1 Info","Route","Sender"]);
+  // S3: opțional; dacă nu există fișier, va arăta mesaj + cache dacă e
+  loadSec('s3', null);
 
-  /* ——— SEARCH clasic: x/y + next/prev ——— */
-  function runSearch(text){
-    document.querySelectorAll(".hit").forEach(td=>td.classList.remove("hit","focus"));
-    matches = []; mIndex = -1;
-    qCount.textContent = "0/0"; qPrev.disabled = qNext.disabled = true;
+  // Ștergere cache local
+  byId('clearLocal').addEventListener('click', ()=>{
+    const pin = prompt('PIN admin (4 cifre):');
+    if(pin !== '3141'){ alert('PIN greșit.'); return; }
+    localStorage.removeItem(CACHE_KEY);
+    alert('Datele locale au fost șterse (CSV cache). Reîncarcă pagina.');
+  });
 
-    const cont = OUT[current];
-    const table = cont.querySelector("table"); if(!table) return;
+  // ---------- Parser CSV simplu (cu ghilimele) ----------
+  function parseCSV(text){
+    const rows = [];
+    let row = [], cell = '', inQ = false;
 
-    const ql = (text||"").trim().toLowerCase();
-    if(!ql){ return; }
+    for (let i=0; i<text.length; i++){
+      const ch = text[i], nx = text[i+1];
+      if(inQ){
+        if(ch === '"' && nx === '"'){ cell += '"'; i++; continue; }
+        if(ch === '"'){ inQ = false; continue; }
+        cell += ch; continue;
+      }
+      if(ch === '"'){ inQ = true; continue; }
+      if(ch === ','){ row.push(cell); cell=''; continue; }
+      if(ch === '\r'){ continue; }
+      if(ch === '\n'){ row.push(cell); rows.push(row); cell=''; row=[]; continue; }
+      cell += ch;
+    }
+    if(cell.length || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
 
-    Array.from(table.tBodies).forEach(tb=>{
-      Array.from(tb.rows).forEach(tr=>{
-        Array.from(tr.cells).forEach(td=>{
-          const t=(td.textContent||"").toLowerCase();
-          if(t.includes(ql)){ td.classList.add("hit"); matches.push(td); }
-        });
-      });
+  // ---------- Alegem headerul corect & randăm tabel curat ----------
+  function renderCleanTable(rows, lockedHeader){
+    if(!rows || !rows.length) return '<div class="note">Fișier gol.</div>';
+
+    // găsește rândul de header: preferă conținând „timestamp/ type / from”
+    let hdrIdx = -1;
+    for (let i=0;i<rows.length;i++){
+      const vals = rows[i].map(v=>String(v).trim().toLowerCase());
+      const hits = ['timestamp','type','from'].filter(k=>vals.includes(k)).length;
+      if(hits>=1){ hdrIdx=i; break; }
+    }
+    // fallback: prima linie non-vidă
+    if(hdrIdx === -1){
+      hdrIdx = rows.findIndex(r => r.some(v => String(v).trim()!==''));
+      if(hdrIdx === -1) return '<div class="note">Nu s-au găsit date.</div>';
+    }
+
+    // Dacă avem „#sep” pe prima coloană, îl păstrăm ca separator vizual
+    const header = lockedHeader ? lockedHeader : rows[hdrIdx];
+    const body = rows.slice(hdrIdx + (lockedHeader ? 0 : 1)); // dacă lock, nu sărim headerul din fișier
+    const clean = body.filter(r => r.some(v => String(v).trim()!==''));
+
+    // determină nr. coloane
+    const cols = Math.max(header.length, ...clean.map(r=>r.length)) || header.length;
+
+    const esc = s => String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
+    const ths = Array.from({length: cols}).map((_,i)=> `<th>${esc(header[i] ?? '')}</th>` ).join('');
+
+    const trs = clean.map(r=>{
+      const isSep = String(r[0]).trim()==='#sep';
+      if(isSep) return `<tr class="sep-row"><td colspan="${cols}">—</td></tr>`;
+      const tds = Array.from({length: cols}).map((_,i)=> `<td>${esc(r[i] ?? '')}</td>`).join('');
+      return `<tr>${tds}</tr>`;
+    }).join('');
+
+    return `<div style="overflow:auto;max-height:calc(100vh - 180px)"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+  }
+
+  // ---------- Căutare clasică cu contor + next/prev ----------
+  let hits = [], hitIndex = -1;
+  function clearHits(){
+    $$('#'+current+' td.hit').forEach(td=>td.classList.remove('hit'));
+    hits = []; hitIndex = -1;
+    byId('srCount').textContent = '0/0';
+  }
+
+  function runSearch(q){
+    clearHits();
+    q = q.trim().toLowerCase();
+    if(!q) return;
+
+    const table = byId(current).querySelector('table');
+    if(!table) return;
+
+    const cells = Array.from(table.tBodies[0]?.querySelectorAll('td')||[]);
+    cells.forEach(td => {
+      const t = (td.textContent||'').toLowerCase();
+      if(t.includes(q)) { td.classList.add('hit'); hits.push(td); }
     });
 
-    if(matches.length){
-      mIndex = 0;
-      focusMatch(0);
-      qCount.textContent = `1/${matches.length}`;
-      qPrev.disabled = qNext.disabled = false;
-    } else {
-      qCount.textContent = "0/0";
+    if(hits.length){
+      hitIndex = 0; scrollToHit();
     }
+    byId('srCount').textContent = `${Math.max(hitIndex+1,0)}/${hits.length}`;
   }
 
-  function focusMatch(i){
-    matches.forEach(td=>td.classList.remove("focus"));
-    if(!matches[i]) return;
-    const td = matches[i];
-    td.classList.add("focus");
-    td.scrollIntoView({behavior:"smooth", block:"center"});
-    qCount.textContent = `${i+1}/${matches.length}`;
+  function scrollToHit(){
+    if(hitIndex<0 || hitIndex>=hits.length) return;
+    const el = hits[hitIndex];
+    el.scrollIntoView({behavior:'smooth', block:'center'});
+    byId('srCount').textContent = `${hitIndex+1}/${hits.length}`;
   }
 
-  q.oninput = e => runSearch(e.target.value);
-  q.onkeydown = e => {
-    if(e.key === "Enter"){
+  byId('search').addEventListener('keydown',(e)=>{
+    if(e.key==='Enter'){
+      if(e.shiftKey){ // prev
+        if(hits.length){ hitIndex = (hitIndex-1+hits.length)%hits.length; scrollToHit(); }
+      }else{
+        if(hits.length){ hitIndex = (hitIndex+1)%hits.length; scrollToHit(); }
+      }
       e.preventDefault();
-      if(!matches.length) return;
-      if(e.shiftKey){ mIndex = (mIndex - 1 + matches.length) % matches.length; }
-      else          { mIndex = (mIndex + 1) % matches.length; }
-      focusMatch(mIndex);
     }
-  };
-  qPrev.onclick = ()=>{ if(matches.length){ mIndex = (mIndex - 1 + matches.length) % matches.length; focusMatch(mIndex); } };
-  qNext.onclick = ()=>{ if(matches.length){ mIndex = (mIndex + 1) % matches.length; focusMatch(mIndex); } };
+  });
+  byId('search').addEventListener('input', (e)=> runSearch(e.target.value));
 
-  /* init */
-  show("s1");
-  loadDefaultFromRepo().then(()=> runSearch(q.value||""));
-});
+  byId('prevBtn').addEventListener('click', ()=>{
+    if(hits.length){ hitIndex = (hitIndex-1+hits.length)%hits.length; scrollToHit(); }
+  });
+  byId('nextBtn').addEventListener('click', ()=>{
+    if(hits.length){ hitIndex = (hitIndex+1)%hits.length; scrollToHit(); }
+  });
+
+})();
