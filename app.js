@@ -76,7 +76,7 @@
   // S1: detectăm header în fișier (poate avea titlu pe primul rând)
   loadSec('s1', null);
   // S2: „lock” header exact: Timestamp, Type, Stop 1 Info, Route, Sender
-  loadSec('s2', ["Timestamp","Type","Stop 1 Info","Route","Sender"]);
+  loadSec('s2', ["Timestamp","Stop 1 Info","Route","Sender"]);
   // S3: opțional; dacă nu există fișier, va arăta mesaj + cache dacă e
   loadSec('s3', null);
 
