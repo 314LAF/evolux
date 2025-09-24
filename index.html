@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CSV Viewer (simplu & robust)</title>
+  <title>Vizualizator CSV – Evolux</title>
   <style>
     :root { --bg:#f5f7fb; --card:#ffffff; --text:#0b1220; --muted:#64748b; --accent:#2563eb; }
     *{box-sizing:border-box}
@@ -68,11 +68,13 @@
       <div class="box">
         <label class="btn" for="file">Încarcă CSV</label>
         <input id="file" type="file" accept=".csv" hidden />
-        <input id="url" type="url" placeholder="sau URL CSV (ex: /evolux/data/s1.csv)"/>
+        <input id="url" type="url" placeholder="sau URL CSV (ex: ./data/s1.csv)"/>
         <button id="loadUrl" class="btn">Încarcă din URL</button>
         <textarea id="paste" placeholder="sau lipește CSV aici și apasă „Încarcă din text”"></textarea>
         <button id="loadText" class="btn">Încarcă din text</button>
         <button id="saveHtml" class="btn" disabled>Salvează HTML</button>
+        <button id="shareLink" class="btn">Generează link de share</button>
+        <button id="clearCache" class="btn">Șterge datele locale</button>
       </div>
 
       <div id="status" class="status"></div>
@@ -99,6 +101,7 @@
     </div>
   </div>
 
-  <script defer src="./app.js"></script>
+  <!-- versiune pt cache-bust -->
+  <script defer src="./app.js?v=33"></script>
 </body>
 </html>
