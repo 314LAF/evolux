@@ -34,15 +34,12 @@
     .hit{outline:2px solid var(--accent);background:rgba(37,99,235,.12)}
     @media(max-width:900px){ .app{grid-template-columns:1fr} aside{position:static;height:auto} .search input{width:92vw} }
 
-    /* doar o secțiune vizibilă */
     .view{display:none}
     .view.active{display:block}
 
-    /* separatoare & titluri de grup */
     .sep-row td{ background:#e5e7eb; height:10px; padding:0; border:none }
     .group-row td{ background:#eef2f7; font-weight:700; border-top:2px solid #cbd5e1 }
 
-    /* dark */
     body.dark{ background:#0b1220; color:#e7ecf3 }
     body.dark aside, body.dark header, body.dark .card{ background:#121a2b; border-color:rgba(255,255,255,.12) }
     body.dark .btn, body.dark .nav button, body.dark input, body.dark textarea, body.dark .search input{ background:#0f1726; border-color:rgba(255,255,255,.12); color:#e7ecf3 }
@@ -101,7 +98,7 @@
     </div>
   </div>
 
-  <!-- versiune pt cache-bust -->
-  <script defer src="./app.js?v=33"></script>
+  <!-- cache-bust: crește numărul când faci update la app.js -->
+  <script defer src="./app.js?v=34"></script>
 </body>
 </html>
