@@ -1,6 +1,7 @@
 "use strict";
 
 // CSV -> array de rânduri (fără lib externe, suportă ghilimele duble)
+// NOTĂ: NU filtrăm rândurile goale; le folosim ca separatoare.
 function parseCSV(text) {
   const rows = [];
   let row = [], cur = "", inQ = false;
@@ -20,15 +21,51 @@ function parseCSV(text) {
   }
   row.push(cur);
   rows.push(row);
-  return rows.filter(r => r.some(v => String(v).trim() !== ""));
+  return rows; // păstrăm și rândurile complet goale
 }
 
+// randează tabel cu suport de separatoare (rând gol / #sep / --- / —) și titluri grup (## Titlu)
 function tableHTML(rows) {
-  if (!rows.length) return '<div style="padding:16px;color:#64748b">CSV gol.</div>';
+  const isEmptyRow = r => !r || r.every(v => String(v ?? "").trim() === "");
+  const isSepMarker = r => {
+    const c0 = String((r && r[0]) ?? "").trim();
+    return c0 === "#sep" || c0 === "---" || c0 === "—";
+  };
+  const isGroupTitle = r => String((r && r[0]) ?? "").trim().startsWith("##");
+
+  // header = primul rând care NU e gol/marker/titlu
+  let headerIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (!isEmptyRow(rows[i]) && !isSepMarker(rows[i]) && !isGroupTitle(rows[i])) {
+      headerIdx = i; break;
+    }
+  }
+  if (headerIdx === -1) return '<div style="padding:16px;color:#64748b">CSV gol.</div>';
+
+  const header = rows[headerIdx].map(v => String(v ?? ""));
+  const colCount = header.length;
+
   const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-  const th = rows[0].map(v => `<th>${esc(v)}</th>`).join("");
-  const tb = rows.slice(1).map(r => `<tr>${r.map(v => `<td>${esc(v)}`).join("</td>")}</td></tr>`).join("");
-  return `<table><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table>`;
+  const th = header.map(v => `<th>${esc(v)}</th>`).join("");
+
+  let body = "";
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const r = rows[i] || [];
+    if (isEmptyRow(r) || isSepMarker(r)) {
+      body += `<tr class="sep-row"><td colspan="${colCount}"></td></tr>`;
+      continue;
+    }
+    if (isGroupTitle(r)) {
+      const title = String(r[0] ?? "").replace(/^##\s*/, "");
+      body += `<tr class="group-row"><td colspan="${colCount}">${esc(title)}</td></tr>`;
+      continue;
+    }
+    const cells = [];
+    for (let c = 0; c < colCount; c++) cells.push(`<td>${esc(r[c] ?? "")}</td>`);
+    body += `<tr>${cells.join("")}</tr>`;
+  }
+
+  return `<table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -42,21 +79,34 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveBtn = document.getElementById("saveHtml");
   const themeBtn = document.getElementById("themeBtn");
 
-  const OUT = { s1: document.getElementById("out-s1"),
-                s2: document.getElementById("out-s2"),
-                s3: document.getElementById("out-s3") };
+  const OUT = {
+    s1: document.getElementById("out-s1"),
+    s2: document.getElementById("out-s2"),
+    s3: document.getElementById("out-s3")
+  };
 
   let current = "s1";
   let lastHTML = "";
   const DATA = { s1:null, s2:null, s3:null };
 
   // dark mode
-  const KEY="csv-theme";
-  function apply(t){ const d=t==="dark"; document.body.classList.toggle("dark", d); themeBtn.textContent = d?"Light":"Dark"; }
+  const KEY = "csv-theme";
+  function apply(t){
+    const d = t === "dark";
+    document.body.classList.toggle("dark", d);
+    themeBtn.textContent = d ? "Light" : "Dark";
+  }
   apply(localStorage.getItem(KEY) || "light");
-  themeBtn.onclick = ()=>{ const n=document.body.classList.contains("dark")?"light":"dark"; localStorage.setItem(KEY,n); apply(n); };
+  themeBtn.onclick = () => {
+    const n = document.body.classList.contains("dark") ? "light" : "dark";
+    localStorage.setItem(KEY, n);
+    apply(n);
+  };
 
-  function setStatus(msg, err=false){ statusEl.textContent = msg || ""; statusEl.style.color = err ? "#b91c1c" : "var(--muted)"; }
+  function setStatus(msg, err=false){
+    statusEl.textContent = msg || "";
+    statusEl.style.color = err ? "#b91c1c" : "var(--muted)";
+  }
 
   // afișare o singură secțiune
   function show(id){
@@ -69,13 +119,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // meniu secțiuni
   document.querySelectorAll(".tabbtn").forEach(b=>{
-    b.onclick = ()=>{
+    b.onclick = () => {
       document.querySelectorAll(".tabbtn").forEach(x=>x.classList.remove("active"));
       b.classList.add("active");
       show(b.dataset.view);
     };
   });
-  show("s1"); // pornește cu S1
+  show("s1"); // start
 
   // căutare + highlight
   function filter(text){
@@ -161,7 +211,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // export HTML
   saveBtn.onclick = ()=>{
-    const htmlDoc = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Tabel</title><style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f3f4f6}</style></head><body>" + lastHTML + "</body></html>";
+    const htmlDoc = "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Tabel</title><style>table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:8px}th{background:#f3f4f6}.sep-row td{background:#e5e7eb;height:10px;padding:0;border:none}.group-row td{background:#eef2f7;font-weight:700;border-top:2px solid #cbd5e1}</style></head><body>" + lastHTML + "</body></html>";
     const blob = new Blob([htmlDoc], {type:"text/html;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "tabel.html"; a.click();
