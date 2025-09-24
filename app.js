@@ -1,8 +1,7 @@
 "use strict";
 
-// CSV -> array de rânduri (fără lib externe)
+// CSV -> array de rânduri (fără lib externe, suportă ghilimele duble)
 function parseCSV(text) {
-  // parsat simplu care respectă ghilimele duble
   const rows = [];
   let row = [], cur = "", inQ = false;
   for (let i = 0; i < text.length; i++) {
@@ -21,7 +20,6 @@ function parseCSV(text) {
   }
   row.push(cur);
   rows.push(row);
-  // elimină rânduri complet goale
   return rows.filter(r => r.some(v => String(v).trim() !== ""));
 }
 
@@ -47,6 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const OUT = { s1: document.getElementById("out-s1"),
                 s2: document.getElementById("out-s2"),
                 s3: document.getElementById("out-s3") };
+
   let current = "s1";
   let lastHTML = "";
   const DATA = { s1:null, s2:null, s3:null };
@@ -59,18 +58,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setStatus(msg, err=false){ statusEl.textContent = msg || ""; statusEl.style.color = err ? "#b91c1c" : "var(--muted)"; }
 
-  // schimbare secțiune
+  // afișare o singură secțiune
+  function show(id){
+    document.querySelectorAll(".view").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+    current = id;
+    q.value = "";
+    filter("");
+  }
+
+  // meniu secțiuni
   document.querySelectorAll(".tabbtn").forEach(b=>{
     b.onclick = ()=>{
       document.querySelectorAll(".tabbtn").forEach(x=>x.classList.remove("active"));
       b.classList.add("active");
-      current = b.dataset.view;
-      q.value = "";
-      filter("");
+      show(b.dataset.view);
     };
   });
+  show("s1"); // pornește cu S1
 
-  // căutare
+  // căutare + highlight
   function filter(text){
     const cont = OUT[current];
     const table = cont.querySelector("table");
@@ -97,7 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   q.oninput = e => filter(e.target.value);
 
-  // încărcare locală
+  // încărcare locală CSV
   file.onchange = e => {
     const f = e.target.files?.[0]; if(!f) return;
     setStatus("Se încarcă: " + f.name + " …");
@@ -118,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.target.value = "";
   };
 
-  // încărcare din URL (aceeași origine → /data/s1.csv etc.)
+  // încărcare din URL (ex: /evolux/data/s1.csv)
   loadUrl.onclick = async ()=>{
     const u = (urlIn.value||"").trim();
     if(!u){ setStatus("Introdu un URL CSV.", true); return; }
@@ -161,6 +168,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(()=>URL.revokeObjectURL(url), 1500);
   };
 
-  // Hint: dacă există CSV-uri în repo, poți preîncărca:
-  // fetch("/evolux/data/s1.csv").then(r=>r.ok?r.text():Promise.reject()).then(t=>{ const rows=parseCSV(t); DATA.s1=rows; OUT.s1.innerHTML=tableHTML(rows); });
+  // (opțional) pre-încărcare automată din repo:
+  // fetch("/evolux/data/s1.csv").then(r=>r.ok?r.text():Promise.reject()).then(t=>{ const rows=parseCSV(t); OUT.s1.innerHTML=tableHTML(rows); });
 });
