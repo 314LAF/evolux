@@ -3,77 +3,81 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Evolux — Vizualizator CSV</title>
-  <style>
-    :root{
-      --bg:#ffffff;--text:#0f172a;--muted:#64748b;--line:#e5e7eb;
-      --card:#f8fafc;--sep:#f1f5f9;
-    }
-    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg)}
-    .nav{position:fixed;inset:0 auto 0 0;width:180px;padding:12px;border-right:1px solid var(--line);background:#fafafa}
-    .nav h1{font-size:16px;margin:0 0 12px;color:var(--muted)}
-    .nav button{display:block;width:100%;margin:8px 0;padding:10px;border:1px solid var(--line);background:#fff;border-radius:10px;cursor:pointer}
-    .nav button:hover{box-shadow:0 0 0 3px rgba(37,99,235,.12) inset}
-    .content{margin-left:200px;padding:16px}
-    .searchbar{display:flex;gap:8px;align-items:center;margin:6px 0 12px}
-    #search{flex:1;padding:10px;border:1px solid var(--line);border-radius:999px}
-    .chip{font-size:12px;color:var(--muted)}
-    .view{display:none}
-    .view.active{display:block}
-    table.grid{width:100%;border-collapse:collapse}
-    table.grid th,table.grid td{border:1px solid var(--line);padding:6px 8px;vertical-align:top}
-    table.grid th{background:var(--card);position:sticky;top:0;z-index:1}
-    tr.sep td{background:var(--sep);height:12px;padding:0;border:0}
-    .status{color:var(--muted);margin:6px 0}
-    .empty{color:var(--muted);padding:12px}
-    .hit{outline:2px solid #f59e0b;outline-offset:-2px}
+  <title>Evolux – Vizualizator</title>
 
-    /* Dark mode */
-    body.dark{--bg:#0b1220;--text:#e2e8f0;--muted:#94a3b8;--line:#334155;--card:#0f172a;--sep:#111827}
-    body.dark .nav{background:#111827;border-color:#1f2937}
-    body.dark .nav button{background:#0b1220;border-color:#1f2937;color:#e2e8f0}
-    body.dark #search{background:#0b1220;border-color:#1f2937;color:#e2e8f0}
+  <style>
+    :root { --bg:#f6f7fb; --card:#fff; --muted:#64748b; --border:#e5e7eb; --hit:#fff3cd; }
+    body { margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:#111; }
+    .layout { display:grid; grid-template-columns: 220px 1fr; min-height:100vh; }
+    aside { background:#fff; border-right:1px solid var(--border); padding:12px; }
+    aside h3 { margin:8px 0; font-size:13px; color:var(--muted); }
+    .menu button { width:100%; text-align:left; margin:6px 0; padding:10px 12px; border:1px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; }
+    .menu button.active { outline:2px solid #111; }
+    main { padding:16px 18px 48px; }
+    .toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+    .toolbar input[type="text"] { flex:1; padding:10px 12px; border:1px solid var(--border); border-radius:999px; }
+    .toolbar .ctr { display:flex; gap:6px; align-items:center; }
+    .toolbar .ctr button { padding:6px 10px; border:1px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 10px 14px; }
+    h2 { font-size:16px; font-weight:600; margin:6px 10px 12px; }
+    table { width:100%; border-collapse:collapse; }
+    thead th { position:sticky; top:0; background:#fafafa; border-bottom:1px solid var(--border); padding:8px; text-align:left; }
+    tbody td { border-top:1px solid var(--border); padding:8px; vertical-align:top; }
+    td.hit { background:var(--hit); }
+    .muted { color:var(--muted); }
+    .p16 { padding:16px; }
+    .hidden { display:none; }
   </style>
 </head>
 <body>
-  <aside class="nav">
-    <h1>Meniu</h1>
-    <button id="nav-s1">Chime S1–S52</button>
-    <button id="nav-s2">Curse spre XAR1</button>
-    <button id="nav-s3">Curse intermodale</button>
-    <button id="theme">Dark</button>
-  </aside>
+  <div class="layout">
+    <aside>
+      <h3>Meniu</h3>
+      <div class="menu">
+        <button class="nav" data-section="s1">Chime S1–S52</button>
+        <button class="nav" data-section="s2">Curse spre XAR1</button>
+        <button class="nav" data-section="s3">Curse intermodale</button>
+      </div>
+      <hr>
+      <button id="clearLocal" title="Șterge cache-ul local (dacă există)">Șterge datele locale</button>
+      <p class="muted" style="font-size:12px;margin-top:8px">Datele se încarcă din <code>/data/*.csv</code>.</p>
+      <div id="status" class="muted" style="margin-top:8px;font-size:12px"></div>
+    </aside>
 
-  <main class="content">
-    <div class="searchbar">
-  <input id="searchInput" placeholder="Caută în tabelul curent…">
-  <span id="resCount">0/0</span>
-  <button id="prevHit" title="Anterior">↑</button>
-  <button id="nextHit" title="Următor">↓</button>
-  <button id="clearSearch" title="Curăță">✕</button>
-</div>
-<div id="status" class="status"></div>
-<button id="wipeBtn" class="danger">Șterge datele locale</button>
+    <main>
+      <div class="toolbar">
+        <input id="searchInput" type="text" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
+        <div class="ctr">
+          <span id="searchCount" class="muted">0/0</span>
+          <button id="searchPrev" title="Anterior">↑</button>
+          <button id="searchNext" title="Următor">↓</button>
+        </div>
+      </div>
 
-    <section id="s1" class="view active">
-      <h2>Chime S1–S52</h2>
-      <div class="status" id="status-s1"></div>
-      <div class="out" id="out-s1"></div>
-    </section>
+      <section id="s1" class="view">
+        <div class="card">
+          <h2>Chime S1–S52</h2>
+          <div class="out"></div>
+        </div>
+      </section>
 
-    <section id="s2" class="view">
-      <h2>Curse spre XAR1</h2>
-      <div class="status" id="status-s2"></div>
-      <div class="out" id="out-s2"></div>
-    </section>
+      <section id="s2" class="view hidden">
+        <div class="card">
+          <h2>Curse spre XAR1</h2>
+          <div class="out"></div>
+        </div>
+      </section>
 
-    <section id="s3" class="view">
-      <h2>Curse intermodale</h2>
-      <div class="out" id="out-s3"><div class="empty">În curând</div></div>
-    </section>
-  </main>
+      <section id="s3" class="view hidden">
+        <div class="card">
+          <h2>Curse intermodale</h2>
+          <div class="out muted p16">În pregătire.</div>
+        </div>
+      </section>
+    </main>
+  </div>
 
-  <!-- Crește versiunea la fiecare update ca să spargi cache-ul -->
-  <script defer src="./app.js?v=46"></script>
+  <!-- Spargem cache-ul de fiecare dată când schimbi numărul -->
+  <script defer src="./app.js?v=48"></script>
 </body>
 </html>
