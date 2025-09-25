@@ -2,83 +2,89 @@
 <html lang="ro">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Chime / Curse – viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vizualizator tabele / liste</title>
+
   <style>
-    :root{--bg:#f6f7fb;--card:#fff;--text:#0b1220;--muted:#64748b;--border:#e5e7eb;--accent:#2563eb}
-    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
-    .app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
-    aside{border-right:1px solid var(--border);padding:10px;background:#fff}
-    main{padding:16px}
-    .btn{display:block;width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;margin:6px 0;cursor:pointer;text-align:left}
-    .btn.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.15) inset}
-    .topbar{display:flex;gap:8px;align-items:center;justify-content:center;margin:6px 0 14px}
-    #search{flex:1;max-width:620px;padding:9px 12px;border:1px solid var(--border);border-radius:999px;outline:none}
-    .sr-ctrl{display:flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
-    .sr-ctrl button{border:1px solid var(--border);background:#fff;border-radius:8px;padding:4px 8px;cursor:pointer}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.06);padding:10px}
-    .title{font-weight:700;margin:4px 6px 10px}
-    table{width:100%;border-collapse:collapse}
-    th,td{border:1px solid var(--border);padding:8px;vertical-align:top}
-    th{background:#f3f4f6;position:sticky;top:0;z-index:1}
-    .section{display:none}.section.active{display:block}
-    .sep-row td{background:#f8fafc;color:#64748b;font-weight:600;text-align:center}
-    .hit{outline:2px solid #f59e0b;background:#fff7ed}
-    .note{font-size:13px;color:var(--muted);margin:8px 0}
-    /* Dark */
-    body.dark{--bg:#0b1220;--card:#0f1526;--text:#e6edf6;--muted:#9aa4b2;--border:#1f2937}
-    body.dark th{background:#151b2c}
-    .pill{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 10px;cursor:pointer}
-    body.dark .pill{background:#0f1526}
+    :root { --bg:#f6f7fb; --card:#fff; --text:#0b1220; --muted:#6b7280; --accent:#2563eb; --line:#e5e7eb; }
+    * { box-sizing: border-box }
+    body { margin:0; font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
+    .app { display:grid; grid-template-columns: 220px 1fr; min-height:100vh; }
+
+    /* Sidebar */
+    .nav { background:#fff; border-right:1px solid var(--line); padding:12px; }
+    .nav h3 { margin:8px 8px 12px; font-size:14px; color:var(--muted); }
+    .btn { display:block; width:100%; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:pointer; margin-bottom:8px; }
+    .btn:hover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.12) inset; }
+    .btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.18) inset; }
+    .danger { color:#b91c1c; border-color:#fecaca; background:#fff5f5; }
+
+    /* Content */
+    .wrap { padding:18px; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:0 6px 18px rgba(0,0,0,.06); }
+    header.card-h { display:flex; gap:12px; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); padding:14px 16px; }
+    header h1 { margin:0; font-size:16px; font-weight:650; }
+
+    .searchbar { display:flex; gap:8px; align-items:center; width:min(760px,100%); margin:0 auto; }
+    .searchbar input { width:100%; border:1px solid var(--line); border-radius:999px; padding:10px 14px; outline:none; }
+    .searchbar kbd { background:#f3f4f6; border:1px solid #e5e7eb; border-bottom-width:2px; padding:2px 6px; border-radius:6px; font-size:12px; color:#374151;}
+
+    .section { padding:16px; }
+    .hint { font-size:13px; color:var(--muted); margin:12px 0 0; }
+
+    table { width:100%; border-collapse: collapse; }
+    th, td { border:1px solid var(--line); padding:8px; vertical-align:top; }
+    th { background:#f8fafc; position:sticky; top:0; z-index:1; }
+    tr.sep td { background:#f1f5f9; font-weight:600; color:#334155; }
+    td.hit { outline:2px solid rgba(37,99,235,.55); outline-offset:-2px; background: #eef2ff; }
+
+    /* Dark mode */
+    body.dark { --bg:#0b1220; --card:#0f172a; --text:#e5e7eb; --muted:#9ca3af; --line:#1f2937; }
+    body.dark th { background:#111827; }
+    body.dark .nav, body.dark .btn { background:#0f172a; color:var(--text); }
+    body.dark .btn { border-color:#1f2937; }
+    body.dark .btn:hover, body.dark .btn.active { border-color:#334155; box-shadow:0 0 0 2px rgba(148,163,184,.18) inset; }
+    body.dark .danger { background:#1b0f12; border-color:#442327; color:#fecaca; }
   </style>
+
+  <!-- PapaParse: parser robust CSV -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script defer src="./app.js?v=43"></script>
 </head>
+
 <body>
   <div class="app">
-    <aside>
-      <button class="pill" id="themeBtn">Dark</button>
-      <div style="height:8px"></div>
-      <button class="btn nav" data-sec="s1">Chime S1–S52</button>
-      <button class="btn nav" data-sec="s2">Curse spre XAR1</button>
-      <button class="btn nav" data-sec="s3">Curse intermodale</button>
-      <div style="height:8px"></div>
-      <button class="btn" id="clearLocal">Șterge datele locale</button>
-      <div class="note">Datele se încarcă din <code>/data/*.csv</code>. Butonul de mai sus șterge doar cache-ul local.</div>
+    <aside class="nav">
+      <h3>Meniu</h3>
+      <button class="btn nav-link active" data-section="s1">Chime S1–S52</button>
+      <button class="btn nav-link" data-section="s2">Curse spre XAR1</button>
+      <button class="btn nav-link" data-section="s3">Curse intermodale</button>
+
+      <button id="clearLocal" class="btn danger">Șterge datele locale</button>
+      <div class="hint">Datele se încarcă din <code>/data/*.csv</code>. Butonul de mai sus șterge doar cache-ul local (ex. rezultatele căutărilor). Protejat cu PIN.</div>
     </aside>
 
-    <main>
-      <div class="topbar">
-        <input id="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
-        <div class="sr-ctrl">
-          <span id="srCount">0/0</span>
-          <button id="prevBtn" title="Anterior">↑</button>
-          <button id="nextBtn" title="Următor">↓</button>
-        </div>
-      </div>
+    <main class="wrap">
+      <div class="card">
+        <header class="card-h">
+          <h1 id="title">Chime S1–S52</h1>
+          <div class="searchbar">
+            <input id="q" type="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
+            <kbd id="count">0/0</kbd>
+            <kbd id="prev">↑</kbd>
+            <kbd id="next">↓</kbd>
+            <button id="themeBtn" class="btn" style="width:auto;padding:6px 10px">Dark</button>
+          </div>
+        </header>
 
-      <div id="s1" class="section active">
-        <div class="card">
-          <div class="title">Chime S1–S52</div>
-          <div id="out-s1"></div>
-        </div>
-      </div>
-
-      <div id="s2" class="section">
-        <div class="card">
-          <div class="title">Curse spre XAR1</div>
-          <div id="out-s2"></div>
-        </div>
-      </div>
-
-      <div id="s3" class="section">
-        <div class="card">
-          <div class="title">Curse intermodale</div>
-          <div id="out-s3"></div>
-        </div>
+        <section class="section">
+          <div id="view-s1" class="view"></div>
+          <div id="view-s2" class="view" hidden></div>
+          <div id="view-s3" class="view" hidden></div>
+          <div id="status" class="hint"></div>
+        </section>
       </div>
     </main>
   </div>
-
-  <!-- IMPORTANT: crește numărul când faci update, ca să eviți cache-ul -->
-  <script defer src="./app.js?v=42"></script>
 </body>
 </html>
