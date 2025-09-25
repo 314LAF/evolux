@@ -1,210 +1,214 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const views = {
-    s1: document.getElementById('view-s1'),
-    s2: document.getElementById('view-s2'),
-    s3: document.getElementById('view-s3'),
-  };
-  const titleEl = document.getElementById('title');
-  const q = document.getElementById('q');
-  const countEl = document.getElementById('count');
-  const nextEl = document.getElementById('next');
-  const prevEl = document.getElementById('prev');
-  const statusEl = document.getElementById('status');
-  const themeBtn = document.getElementById('themeBtn');
-  const ADMIN_PIN = '2468'; // ← schimbă-l
+// ====== CSV viewer – s1/s2 fix ======
+(() => {
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const S1_URL = 'data/s1.csv';
+  const S2_URL = 'data/s2.csv';
 
-  let current = 's1';
-  let hits = [];
-  let hitIndex = -1;
+  // ---------- CSV parser robust (ghilimele, virgule în câmp) ----------
+  function parseCSV(text) {
+    const rows = [];
+    let row = [], field = '';
+    let i = 0, inQuotes = false;
 
-  function setStatus(msg, isErr=false) {
-    statusEl.textContent = msg || '';
-    statusEl.style.color = isErr ? '#fca5a5' : 'var(--muted)';
-  }
+    while (i < text.length) {
+      const ch = text[i];
 
-  /* ====== Theme ====== */
-  function applyTheme(t) {
-    document.body.classList.toggle('dark', t === 'dark');
-    themeBtn.textContent = (t === 'dark') ? 'Light' : 'Dark';
-  }
-  applyTheme(localStorage.getItem('theme') || 'light');
-  themeBtn.addEventListener('click', () => {
-    const next = document.body.classList.contains('dark') ? 'light' : 'dark';
-    localStorage.setItem('theme', next); applyTheme(next);
-  });
+      if (inQuotes) {
+        if (ch === '"') {
+          // "" -> ghilimea în câmp
+          if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+          // închidere ghilimele
+          inQuotes = false; i++; continue;
+        }
+        field += ch; i++; continue;
+      }
 
-  /* ====== Router (secțiuni) ====== */
-  const TITLES = {
-    s1: 'Chime S1–S52',
-    s2: 'Curse spre XAR1',
-    s3: 'Curse intermodale',
-  };
-  document.querySelectorAll('.nav-link').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      switchView(btn.dataset.section);
-    });
-  });
+      if (ch === '"') { inQuotes = true; i++; continue; }
+      if (ch === ',') { row.push(field); field = ''; i++; continue; }
+      if (ch === '\r') { i++; continue; }
+      if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; i++; continue; }
 
-  function switchView(id) {
-    current = id;
-    titleEl.textContent = TITLES[id];
-    Object.entries(views).forEach(([k, el]) => { el.hidden = (k !== id); });
-    // resetă căutarea
-    q.value = ''; clearHighlight();
-    // dacă nu e deja încărcat, încearcă să-l (re)încarci
-    if (!views[id].dataset.loaded) {
-      loadSection(id);
+      field += ch; i++;
     }
+    // ultimul câmp / rând
+    row.push(field);
+    rows.push(row);
+
+    // elimină rânduri complet goale
+    return rows.filter(r => r.some(c => String(c).trim() !== ''));
   }
 
-  /* ====== CSV robust cu PapaParse ====== */
-  async function fetchCSV(url) {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const text = await res.text();
+  // ---------- utils ----------
+  function normalizeHeaderCell(s) { return String(s || '').trim(); }
+  function lc(s) { return String(s || '').trim().toLowerCase(); }
 
-    // Delimiter auto: încercăm , și ; și alegem varianta cu mai multe coloane
-    const tryComma = Papa.parse(text, { delimiter: ',', skipEmptyLines: true });
-    const trySemi  = Papa.parse(text, { delimiter: ';', skipEmptyLines: true });
-    const rows = (trySemi.data[0]?.length > tryComma.data[0]?.length) ? trySemi.data : tryComma.data;
+  // Creează HTML de tabel; acceptă separator "#sep"
+  function renderTable(rows, { lockHeader = null } = {}) {
+    if (!rows.length) return '<div class="empty">Fără date</div>';
 
-    // Normalizează: trim la fiecare celulă
-    return rows.map(r => r.map(v => (v==null ? '' : String(v).trim())));
-  }
+    let header = rows[0];
+    let startIdx = 1;
 
-  /* ====== Render tabel curat (cu #sep și header lock) ====== */
-  function renderCleanTable(rows, lockedHeader) {
-    // Caut un rând de header “credibil”
-    let hdrIdx = -1;
-    for (let i=0;i<rows.length;i++){
-      const hasText = rows[i].some(v => String(v).trim() !== '');
-      if (hasText){ hdrIdx = i; break; }
-    }
-    if (hdrIdx === -1) return '<div class="hint">Fișierul nu conține rânduri de text.</div>';
-
-    const fileHeader = rows[hdrIdx];
-    const header = lockedHeader ? lockedHeader : fileHeader.slice();
-
-    // sari headerul din fișier dacă seamănă cu lockedHeader
-    let body = rows.slice(hdrIdx + 1);
-    if (lockedHeader) {
-      const rowLower  = fileHeader.map(v => String(v).toLowerCase());
-      const lockLower = lockedHeader.map(v => v.toLowerCase());
-      const overlap   = lockLower.filter(x => rowLower.includes(x)).length;
-      if (overlap < 2) { // probabil nu e header adevărat → nu-l sări
-        body = rows.slice(hdrIdx);
+    // dacă avem rând de comentariu în S1 (începe cu "##") lăsăm ca rând informativ
+    // pentru #sep fă o bară gri pe un rând întreg
+    if (lockHeader) {
+      // „header blocat”: dacă prima linie e exact headerul – îl folosim;
+      // altfel randăm headerul dorit și tratăm toate rândurile ca date.
+      const first = rows[0].map(normalizeHeaderCell);
+      const lockLc = lockHeader.map(lc);
+      if (first.length === lockHeader.length &&
+          first.every((v, idx) => lc(v) === lockLc[idx])) {
+        header = rows[0];
+        startIdx = 1;
+      } else {
+        header = lockHeader;
+        startIdx = 0;
+      }
+    } else {
+      // S1: dacă primul rând e „comentariu” (începe cu "# "), îl păstrăm separat
+      // dar headerul e următorul rând nenul
+      if (rows[0].length === 1 && String(rows[0][0]).trim().startsWith('##')) {
+        // rând informativ; îl vom afișa sub formă de „caption”
       }
     }
 
-    // construiește HTML
     const esc = s => String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
 
-    let html = '<table><thead><tr>' + header.map(h=>`<th>${esc(h)}</th>`).join('') + '</tr></thead><tbody>';
+    let html = '<table class="grid"><thead><tr>';
+    header.forEach(h => html += `<th>${esc(h)}</th>`);
+    html += '</tr></thead><tbody>';
 
-    body.forEach(r => {
-      // #sep → rând separator
-      const allEmpty = r.every(v => String(v).trim() === '');
-      const joined   = r.map(v => String(v).trim()).join('').toLowerCase();
-      if (!allEmpty && (joined === '#sep' || joined === 'sep')) {
-        html += `<tr class="sep"><td colspan="${header.length}">#sep</td></tr>`;
-        return;
+    for (let r = startIdx; r < rows.length; r++) {
+      const row = rows[r];
+
+      // „#sep” pe prima coloană => separator vizual pe tot rândul
+      if (row.length && String(row[0]).trim() === '#sep') {
+        html += `<tr class="sep"><td colspan="${header.length}"></td></tr>`;
+        continue;
       }
 
-      // taie/completează la numărul de coloane din header (lock)
-      const cells = lockedHeader ? (r.slice(0, header.length)) : r;
-      while (lockedHeader && cells.length < header.length) cells.push('');
-      if (cells.every(v => String(v).trim() === '')) return; // sărim rândurile complet goale
-
-      html += '<tr>' + cells.map(v=>`<td>${esc(v)}`).join('</td>') + '</td></tr>';
-    });
-
+      html += '<tr>';
+      for (let c = 0; c < header.length; c++) {
+        html += `<td>${esc(row[c] ?? '')}</td>`;
+      }
+      html += '</tr>';
+    }
     html += '</tbody></table>';
     return html;
   }
 
-  /* ====== Loader per secțiune ====== */
-  async function loadSection(id) {
+  // ---------- încărcare CSV (cu cache bust) ----------
+  async function loadCSV(url) {
+    const bust = `v=${Date.now()}`;
+    const res = await fetch(`${url}?${bust}`);
+    if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+    return parseCSV(await res.text());
+  }
+
+  // ---------- S1 & S2 ----------
+  async function loadS1() {
     try {
-      setStatus('Se încarcă…');
-      const url = `data/${id}.csv`;
-      const rows = await fetchCSV(url);
-
-      // header lock doar pentru S2 (cerința ta)
-      const locked = (id === 's2')
-        ? ["Timestamp","Stop 1 Info","Route","Sender"]
-        : null;
-
-      const html = renderCleanTable(rows, locked);
-      views[id].innerHTML = html;
-      views[id].dataset.loaded = '1';
-      setStatus('');
-
-      // dacă aveam o căutare deja, refă highlight-ul
-      if (q.value.trim()) doSearch(q.value.trim());
-
-    } catch (err) {
-      console.error(err);
-      views[id].innerHTML = `<div class="hint">Nu am putut încărca ${id.toUpperCase()} (${err.message}).</div>`;
-      setStatus('');
+      const rows = await loadCSV(S1_URL);
+      $('#out-s1').innerHTML = renderTable(rows, { lockHeader: null });
+      $('#status-s1').textContent = '';
+    } catch (e) {
+      $('#out-s1').innerHTML = '';
+      $('#status-s1').textContent = `Nu am putut încărca S1 (${e.message}).`;
     }
   }
 
-  /* ====== Căutare + highlight + navigare ====== */
-  function clearHighlight() {
-    Object.values(views).forEach(v => v.querySelectorAll('td.hit').forEach(td=>td.classList.remove('hit')));
-    hits = []; hitIndex = -1; countEl.textContent = '0/0';
+  async function loadS2() {
+    try {
+      const rows = await loadCSV(S2_URL);
+      const LOCK = ['Timestamp','Stop 1 Info','Route','Sender']; // header blocat pentru S2
+      $('#out-s2').innerHTML = renderTable(rows, { lockHeader: LOCK });
+      $('#status-s2').textContent = '';
+    } catch (e) {
+      $('#out-s2').innerHTML = '';
+      $('#status-s2').textContent = `Nu am putut încărca S2 (${e.message}).`;
+    }
   }
 
-  function doSearch(query) {
-    clearHighlight();
-    if (!query) return;
-    const root = views[current];
-    const tds = root.querySelectorAll('tbody td');
-    const ql = query.toLowerCase();
+  // ---------- căutare (clasică) ----------
+  const searchBox = $('#search');
+  const hitCount = $('#hits');
+  const prevBtn = $('#prev');
+  const nextBtn = $('#next');
 
-    tds.forEach(td => {
-      if ((td.textContent || '').toLowerCase().includes(ql)) {
-        td.classList.add('hit'); hits.push(td);
+  let currentTable;      // <table> curent în view
+  let hits = [];         // [td, ...]
+  let idx = -1;
+
+  function getActiveOut() {
+    // div.view.active .out -> tabelul activ
+    const active = $('.view.active .out table');
+    return active || null;
+  }
+
+  function clearHilite() {
+    hits.forEach(td => td.classList.remove('hit'));
+    hits = []; idx = -1;
+    hitCount.textContent = '0/0';
+  }
+
+  function doSearch(q) {
+    currentTable = getActiveOut();
+    clearHilite();
+    if (!currentTable || !q.trim()) return;
+
+    const qlc = q.toLowerCase();
+    const cells = $$('tbody td', currentTable);
+    for (const td of cells) {
+      if (td.textContent.toLowerCase().includes(qlc)) {
+        td.classList.add('hit');
+        hits.push(td);
       }
-    });
-    if (!hits.length) { countEl.textContent = '0/0'; return; }
-    hitIndex = 0; scrollToHit();
+    }
+    if (hits.length) {
+      idx = 0;
+      hits[idx].scrollIntoView({behavior:'smooth', block:'center'});
+      hitCount.textContent = `${idx+1}/${hits.length}`;
+    } else {
+      hitCount.textContent = '0/0';
+    }
   }
 
-  function scrollToHit() {
-    if (hitIndex < 0 || hitIndex >= hits.length) return;
-    const node = hits[hitIndex];
-    node.scrollIntoView({ behavior:'smooth', block:'center' });
-    countEl.textContent = `${hitIndex+1}/${hits.length}`;
+  function step(dir) {
+    if (!hits.length) return;
+    idx = (idx + dir + hits.length) % hits.length;
+    hits[idx].scrollIntoView({behavior:'smooth', block:'center'});
+    hitCount.textContent = `${idx+1}/${hits.length}`;
   }
 
-  q.addEventListener('input', e => doSearch(e.target.value.trim()));
-  q.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      if (!hits.length) return;
-      if (e.shiftKey) { hitIndex = (hitIndex-1+hits.length)%hits.length; }
-      else { hitIndex = (hitIndex+1)%hits.length; }
-      scrollToHit();
-      e.preventDefault();
-    }
+  searchBox.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { doSearch(searchBox.value); e.preventDefault(); }
+    if (e.key === 'Enter' && e.shiftKey) { step(-1); e.preventDefault(); }
   });
-  nextEl.addEventListener('click', () => { if(hits.length){ hitIndex=(hitIndex+1)%hits.length; scrollToHit(); }});
-  prevEl.addEventListener('click', () => { if(hits.length){ hitIndex=(hitIndex-1+hits.length)%hits.length; scrollToHit(); }});
+  nextBtn.addEventListener('click', () => step(+1));
+  prevBtn.addEventListener('click', () => step(-1));
+  $('#clear').addEventListener('click', () => { searchBox.value=''; clearHilite(); });
 
-  /* ====== Clear local (PIN) ====== */
-  document.getElementById('clearLocal').addEventListener('click', () => {
-    const pin = prompt('Introdu PIN admin pentru a șterge datele locale:');
-    if (pin === ADMIN_PIN) {
-      localStorage.clear();
-      alert('Datele locale au fost șterse. Fă un hard refresh (Ctrl/Cmd+Shift+R) dacă vrei să reîncarci complet.');
-    } else if (pin !== null) {
-      alert('PIN greșit.');
-    }
-  });
+  // ---------- navigație / inițializare ----------
+  function show(id){
+    $$('.view').forEach(v => v.classList.remove('active'));
+    $(`#${id}`).classList.add('active');
+    clearHilite();
+    doSearch(searchBox.value);
+  }
 
-  /* ====== Start ====== */
-  switchView('s1');   // pornește pe S1
-});
+  $('#nav-s1').addEventListener('click', () => { show('s1'); });
+  $('#nav-s2').addEventListener('click', () => { show('s2'); });
+  $('#nav-s3').addEventListener('click', () => { show('s3'); });
+
+  // Dark toggle simplu
+  $('#theme').addEventListener('click', () => document.body.classList.toggle('dark'));
+
+  // load + start
+  (async () => {
+    await Promise.all([loadS1(), loadS2()]);
+    show('s1');
+  })();
+})();
