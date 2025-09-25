@@ -88,70 +88,81 @@ const Search = {
 
 /* ========= S2 – normalizare strictă ========= */
 
-const DAY_RX = /(Luni|Mar[țt]i|Miercuri|Joi|Vineri|S[aâ]mb[ăa]t[ăa]|Duminic[ăa])$/i;
+const DAY_RX  = /(Luni|Mar[țt]i|Miercuri|Joi|Vineri|S[aâ]mb[ăa]t[ăa]|Duminic[ăa])$/i;
 const TIME_RX = /([01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/;
 const XAR1_RX = /(.*?\bXAR1)\b/i;
-const EMAIL_RX = /<[^<>@\s]+@[^<>@\s]+>/;
+const EMAIL_RX= /<[^<>@\s]+@[^<>@\s]+>/;
 
 function normalizeS2Row(raw){
-  let ts   = raw["Timestamp"] || raw["Timp"] || raw["Time"] || raw[Object.keys(raw)[0]] || "";
-  let stop = raw["Stop 1 Info"] || raw["Step 1 Info"] || raw["Stop 1"] || "";
-  let route= raw["Route"] || raw["Rută"] || "";
-  let snd  = raw["Sender"] || raw["Expeditor"] || "";
+  // citește cu fallback pe nume alternative
+  let ts   = (raw["Timestamp"]   ?? raw["Timp"]   ?? raw["Time"]   ?? "").trim();
+  let stop = (raw["Stop 1 Info"] ?? raw["Step 1 Info"] ?? raw["Stop 1"] ?? "").trim();
+  let route= (raw["Route"]       ?? raw["Rută"]  ?? "").trim();
+  let snd  = (raw["Sender"]      ?? raw["Expeditor"] ?? "").trim();
 
-  // Timestamp: până la zi
-  if(typeof ts === "string"){
-    ts = ts.trim();
-    if(!DAY_RX.test(ts)){
+  /* Timestamp — taie până la ziua săptămânii, DAR dacă nu găsește, păstrează originalul */
+  if (ts) {
+    const m = ts.match(DAY_RX);
+    if (!m) {
       const join = [ts, stop, route, snd].join(" ");
-      const m = join.match(DAY_RX);
-      if(m){
-        const cut = join.indexOf(m[0]) + m[0].length;
+      const m2 = join.match(DAY_RX);
+      if (m2) {
+        const cut = join.indexOf(m2[0]) + m2[0].length;
         ts = join.slice(0, cut).trim();
       }
+      // altfel: lasă ts așa cum e
     }
   }
 
-  // Stop 1 Info: până la ultima oră
-  if(typeof stop === "string"){
+  /* Stop 1 Info — până la ultima oră, dar dacă nu e oră deloc → păstrează originalul */
+  if (stop) {
     const m = stop.match(TIME_RX);
-    if(m){
+    if (m) {
       stop = stop.slice(0, stop.lastIndexOf(m[0]) + m[0].length).trim();
-    }else{
+    } else {
+      // încearcă să „împrumuți” o oră din câmpurile vecine, altfel păstrează stop
       const join = [stop, route, snd].join(" ");
       const mm = join.match(TIME_RX);
-      if(mm){
+      if (mm) {
         const cut = join.indexOf(mm[0]) + mm[0].length;
-        stop = join.slice(0, cut).trim();
-        if(route.startsWith(stop)) route = route.slice(stop.length).trim();
+        const guess = join.slice(0, cut).trim();
+        // Acceptă doar dacă „guess” pornește cu textul stop-ului, ca să nu inventăm
+        if (guess.toLowerCase().startsWith(stop.toLowerCase())) stop = guess;
       }
     }
   }
 
-  // Route: până la XAR1
-  if(typeof route === "string"){
+  /* Route — până la XAR1; dacă nu găsește XAR1, păstrează originalul */
+  if (route) {
     const m = route.match(XAR1_RX);
-    if(m) route = m[1].trim();
+    if (m) route = m[1].trim();
   }
 
-  // Sender: „Nume Prenume <email>” dacă există email
-  if(typeof snd === "string"){
-    snd = snd.replace(/\s+/g," ").trim();
+  /* Sender — „Nume Prenume <email>” dacă există email; altfel păstrează originalul */
+  if (snd) {
+    snd = snd.replace(/\s+/g, " ").trim();
     const m = snd.match(EMAIL_RX);
-    if(m){
+    if (m) {
       const email = m[0];
-      const name = snd.replace(EMAIL_RX,"").trim().replace(/[–-]\s*$/,"");
+      const name = snd.replace(EMAIL_RX, "").trim().replace(/[–-]\s*$/, "");
       snd = name ? `${name} ${email}` : email;
     }
   }
 
-  return {
-    "Timestamp": ts,
-    "Stop 1 Info": stop,
-    "Route": route,
-    "Sender": snd
-  };
+  // ca SIGURANȚĂ finală: dacă ceva a ajuns gol, pune valoarea brută la loc
+  const rawTs   = (raw["Timestamp"]   ?? raw["Timp"]   ?? raw["Time"]   ?? "").trim();
+  const rawStop = (raw["Stop 1 Info"] ?? raw["Step 1 Info"] ?? raw["Stop 1"] ?? "").trim();
+  const rawRoute= (raw["Route"]       ?? raw["Rută"]  ?? "").trim();
+  const rawSnd  = (raw["Sender"]      ?? raw["Expeditor"] ?? "").trim();
+
+  if (!ts)   ts   = rawTs;
+  if (!stop) stop = rawStop;
+  if (!route)route= rawRoute;
+  if (!snd)  snd  = rawSnd;
+
+  return { "Timestamp": ts, "Stop 1 Info": stop, "Route": route, "Sender": snd };
 }
+
 
 /* ========= încărcare & randare secțiuni ========= */
 
