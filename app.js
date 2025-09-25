@@ -1,11 +1,9 @@
-// Evolux – CSV/TSV viewer cu Dark Mode, #sep, căutare și S2 header lock
-// v51
+// Evolux – CSV/TSV viewer cu Dark Mode, #sep, căutare, nav collapse
+// v52
 
 (function () {
   // ===== helpers =====
   const $ = (id) => document.getElementById(id);
-  const on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
-
   const statusEl = $('status');
   const setStatus = (msg, isErr=false) => {
     if (!statusEl) return;
@@ -21,27 +19,47 @@
     if (btn) btn.textContent = document.body.classList.contains('dark') ? 'Light' : 'Dark';
   }
   applyTheme(localStorage.getItem(THEME_KEY) || 'light');
-  on('themeBtn','click', ()=>{
+  $('themeBtn')?.addEventListener('click', ()=>{
     const next = document.body.classList.contains('dark') ? 'light' : 'dark';
     localStorage.setItem(THEME_KEY, next);
     applyTheme(next);
   });
 
-  // ===== Navigație =====
+  // ===== Nav collapse =====
+  const NAV_KEY = 'evolux-nav-collapsed';
+  const layout = $('appLayout');
+  function applyNavCollapsed(collapsed){
+    layout.classList.toggle('nav-collapsed', collapsed);
+    const t = $('toggleNav');
+    if (t) t.textContent = collapsed ? '☰' : '⟨';
+  }
+  applyNavCollapsed(localStorage.getItem(NAV_KEY)==='1');
+
+  $('toggleNav')?.addEventListener('click', ()=>{
+    const collapsed = !layout.classList.contains('nav-collapsed');
+    localStorage.setItem(NAV_KEY, collapsed ? '1':'0');
+    applyNavCollapsed(collapsed);
+  });
+  $('openNavHandle')?.addEventListener('click', ()=>{
+    localStorage.setItem(NAV_KEY, '0');
+    applyNavCollapsed(false);
+  });
+
+  // ===== Navigație secțiuni =====
   function show(sectionId) {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.querySelector(`#${sectionId}`).classList.remove('hidden');
     document.querySelectorAll('.menu .nav').forEach(b => b.classList.toggle('active', b.dataset.section===sectionId));
-    filterAndCount(); // re-apply search
+    runSearch(); // re-apply search
   }
   document.querySelectorAll('.menu .nav').forEach(b=>{
     b.addEventListener('click', ()=> show(b.dataset.section));
   });
 
-  // ===== Căutare =====
+  // ===== Căutare (fix: contor + enter/shift+enter + highlight) =====
   let hits = [], hitIndex = -1;
-  function filterAndCount() {
-    const q = ($('#searchInput')?.value || '').trim().toLowerCase();
+  function runSearch() {
+    const q = ($('searchInput')?.value || '').trim().toLowerCase();
     const current = document.querySelector('.menu .nav.active')?.dataset.section || 's1';
     const table = document.querySelector(`#${current} .out table`);
     const counter = $('searchCount');
@@ -49,11 +67,14 @@
     hits = []; hitIndex = -1;
     if (!table) { if(counter) counter.textContent = '0/0'; return; }
 
+    // curățăm highlight vechi
     table.querySelectorAll('td.hit').forEach(td=>td.classList.remove('hit'));
     if (!q) { if(counter) counter.textContent = '0/0'; return; }
 
+    // marcăm potrivirile
     table.querySelectorAll('tbody tr:not(.sep) td').forEach(td=>{
-      if ((td.textContent||'').toLowerCase().includes(q)) {
+      const txt = (td.textContent || '').toLowerCase();
+      if (txt.includes(q)) {
         td.classList.add('hit');
         hits.push(td);
       }
@@ -69,12 +90,18 @@
     if (counter) counter.textContent = `${hitIndex+1}/${hits.length}`;
     hits[hitIndex].scrollIntoView({block:'center', behavior:'smooth'});
   }
-  on('searchInput','input', filterAndCount);
-  on('searchPrev','click', ()=> jumpHit(-1));
-  on('searchNext','click', ()=> jumpHit(+1));
+  $('searchInput')?.addEventListener('input', runSearch);
+  $('searchInput')?.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      jumpHit(e.shiftKey ? -1 : +1);
+    }
+  });
+  $('searchPrev')?.addEventListener('click', ()=> jumpHit(-1));
+  $('searchNext')?.addEventListener('click', ()=> jumpHit(+1));
 
   // ===== Buton ștergere cache local (opțional) =====
-  on('clearLocal','click', ()=>{
+  $('clearLocal')?.addEventListener('click', ()=>{
     localStorage.clear();
     setStatus('Cache local șters. Reîncarc…');
     location.reload();
@@ -129,7 +156,7 @@
     const rows = [];
     let headerConsumed = false;
 
-    // recunoaște linii de tip separator și variante (prima coloană #sep/sep/---, restul goale)
+    // recunoaște linii separator exprimate și ca "sep / ---" în prima coloană
     const isSepCells = (cells) => {
       const first = (cells[0] || '').trim().toLowerCase();
       const restEmpty = cells.slice(1).every(c => String(c).trim() === '');
@@ -147,7 +174,7 @@
     return { headers: headersRaw, rows };
   }
 
-  function esc(s){ return String(s ?? '').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+  function esc(s){ return String(s ?? '').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&gt;','>':'&gt;','"':'&quot;'}[m])); }
 
   function renderTable(sectionId, parsed, lockHeaders=null) {
     const wrap = document.querySelector(`#${sectionId} .out`);
@@ -184,13 +211,13 @@
     wrap.innerHTML = html;
 
     // re-apply search dacă e cazul
-    if (($('searchInput')?.value || '').trim()) filterAndCount();
+    if (($('searchInput')?.value || '').trim()) runSearch();
   }
 
   async function boot() {
     try {
       setStatus('Încarc datele…');
-      const v = 51; // cache-bust pentru CSV-uri
+      const v = 52; // cache-bust pentru CSV-uri
 
       // Încarcă S1 și S2
       const [s1, s2] = await Promise.all([
