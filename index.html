@@ -3,88 +3,75 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vizualizator tabele / liste</title>
-
+  <title>Evolux — Vizualizator CSV</title>
   <style>
-    :root { --bg:#f6f7fb; --card:#fff; --text:#0b1220; --muted:#6b7280; --accent:#2563eb; --line:#e5e7eb; }
-    * { box-sizing: border-box }
-    body { margin:0; font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
-    .app { display:grid; grid-template-columns: 220px 1fr; min-height:100vh; }
-
-    /* Sidebar */
-    .nav { background:#fff; border-right:1px solid var(--line); padding:12px; }
-    .nav h3 { margin:8px 8px 12px; font-size:14px; color:var(--muted); }
-    .btn { display:block; width:100%; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:pointer; margin-bottom:8px; }
-    .btn:hover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.12) inset; }
-    .btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.18) inset; }
-    .danger { color:#b91c1c; border-color:#fecaca; background:#fff5f5; }
-
-    /* Content */
-    .wrap { padding:18px; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:0 6px 18px rgba(0,0,0,.06); }
-    header.card-h { display:flex; gap:12px; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); padding:14px 16px; }
-    header h1 { margin:0; font-size:16px; font-weight:650; }
-
-    .searchbar { display:flex; gap:8px; align-items:center; width:min(760px,100%); margin:0 auto; }
-    .searchbar input { width:100%; border:1px solid var(--line); border-radius:999px; padding:10px 14px; outline:none; }
-    .searchbar kbd { background:#f3f4f6; border:1px solid #e5e7eb; border-bottom-width:2px; padding:2px 6px; border-radius:6px; font-size:12px; color:#374151;}
-
-    .section { padding:16px; }
-    .hint { font-size:13px; color:var(--muted); margin:12px 0 0; }
-
-    table { width:100%; border-collapse: collapse; }
-    th, td { border:1px solid var(--line); padding:8px; vertical-align:top; }
-    th { background:#f8fafc; position:sticky; top:0; z-index:1; }
-    tr.sep td { background:#f1f5f9; font-weight:600; color:#334155; }
-    td.hit { outline:2px solid rgba(37,99,235,.55); outline-offset:-2px; background: #eef2ff; }
+    :root{
+      --bg:#ffffff;--text:#0f172a;--muted:#64748b;--line:#e5e7eb;
+      --card:#f8fafc;--sep:#f1f5f9;
+    }
+    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg)}
+    .nav{position:fixed;inset:0 auto 0 0;width:180px;padding:12px;border-right:1px solid var(--line);background:#fafafa}
+    .nav h1{font-size:16px;margin:0 0 12px;color:var(--muted)}
+    .nav button{display:block;width:100%;margin:8px 0;padding:10px;border:1px solid var(--line);background:#fff;border-radius:10px;cursor:pointer}
+    .nav button:hover{box-shadow:0 0 0 3px rgba(37,99,235,.12) inset}
+    .content{margin-left:200px;padding:16px}
+    .searchbar{display:flex;gap:8px;align-items:center;margin:6px 0 12px}
+    #search{flex:1;padding:10px;border:1px solid var(--line);border-radius:999px}
+    .chip{font-size:12px;color:var(--muted)}
+    .view{display:none}
+    .view.active{display:block}
+    table.grid{width:100%;border-collapse:collapse}
+    table.grid th,table.grid td{border:1px solid var(--line);padding:6px 8px;vertical-align:top}
+    table.grid th{background:var(--card);position:sticky;top:0;z-index:1}
+    tr.sep td{background:var(--sep);height:12px;padding:0;border:0}
+    .status{color:var(--muted);margin:6px 0}
+    .empty{color:var(--muted);padding:12px}
+    .hit{outline:2px solid #f59e0b;outline-offset:-2px}
 
     /* Dark mode */
-    body.dark { --bg:#0b1220; --card:#0f172a; --text:#e5e7eb; --muted:#9ca3af; --line:#1f2937; }
-    body.dark th { background:#111827; }
-    body.dark .nav, body.dark .btn { background:#0f172a; color:var(--text); }
-    body.dark .btn { border-color:#1f2937; }
-    body.dark .btn:hover, body.dark .btn.active { border-color:#334155; box-shadow:0 0 0 2px rgba(148,163,184,.18) inset; }
-    body.dark .danger { background:#1b0f12; border-color:#442327; color:#fecaca; }
+    body.dark{--bg:#0b1220;--text:#e2e8f0;--muted:#94a3b8;--line:#334155;--card:#0f172a;--sep:#111827}
+    body.dark .nav{background:#111827;border-color:#1f2937}
+    body.dark .nav button{background:#0b1220;border-color:#1f2937;color:#e2e8f0}
+    body.dark #search{background:#0b1220;border-color:#1f2937;color:#e2e8f0}
   </style>
-
-  <!-- PapaParse: parser robust CSV -->
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script defer src="./app.js?v=43"></script>
 </head>
-
 <body>
-  <div class="app">
-    <aside class="nav">
-      <h3>Meniu</h3>
-      <button class="btn nav-link active" data-section="s1">Chime S1–S52</button>
-      <button class="btn nav-link" data-section="s2">Curse spre XAR1</button>
-      <button class="btn nav-link" data-section="s3">Curse intermodale</button>
+  <aside class="nav">
+    <h1>Meniu</h1>
+    <button id="nav-s1">Chime S1–S52</button>
+    <button id="nav-s2">Curse spre XAR1</button>
+    <button id="nav-s3">Curse intermodale</button>
+    <button id="theme">Dark</button>
+  </aside>
 
-      <button id="clearLocal" class="btn danger">Șterge datele locale</button>
-      <div class="hint">Datele se încarcă din <code>/data/*.csv</code>. Butonul de mai sus șterge doar cache-ul local (ex. rezultatele căutărilor). Protejat cu PIN.</div>
-    </aside>
+  <main class="content">
+    <div class="searchbar">
+      <input id="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)">
+      <span class="chip" id="hits">0/0</span>
+      <button id="prev" title="Anterior">˄</button>
+      <button id="next" title="Următor">˅</button>
+      <button id="clear" title="Șterge căutarea">×</button>
+    </div>
 
-    <main class="wrap">
-      <div class="card">
-        <header class="card-h">
-          <h1 id="title">Chime S1–S52</h1>
-          <div class="searchbar">
-            <input id="q" type="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
-            <kbd id="count">0/0</kbd>
-            <kbd id="prev">↑</kbd>
-            <kbd id="next">↓</kbd>
-            <button id="themeBtn" class="btn" style="width:auto;padding:6px 10px">Dark</button>
-          </div>
-        </header>
+    <section id="s1" class="view active">
+      <h2>Chime S1–S52</h2>
+      <div class="status" id="status-s1"></div>
+      <div class="out" id="out-s1"></div>
+    </section>
 
-        <section class="section">
-          <div id="view-s1" class="view"></div>
-          <div id="view-s2" class="view" hidden></div>
-          <div id="view-s3" class="view" hidden></div>
-          <div id="status" class="hint"></div>
-        </section>
-      </div>
-    </main>
-  </div>
+    <section id="s2" class="view">
+      <h2>Curse spre XAR1</h2>
+      <div class="status" id="status-s2"></div>
+      <div class="out" id="out-s2"></div>
+    </section>
+
+    <section id="s3" class="view">
+      <h2>Curse intermodale</h2>
+      <div class="out" id="out-s3"><div class="empty">În curând</div></div>
+    </section>
+  </main>
+
+  <!-- Crește versiunea la fiecare update ca să spargi cache-ul -->
+  <script defer src="./app.js?v=44"></script>
 </body>
 </html>
