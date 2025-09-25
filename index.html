@@ -67,69 +67,56 @@
 </head>
 <body>
   <div class="app" id="app">
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-      <div class="row">
-        <div class="title">Meniu</div>
-        <button id="darkBtn" class="btn" title="Dark/Light">Dark</button>
-      </div>
+    <!-- Meniu (stânga) -->
+<aside class="sidebar" id="sidebar">
+  <button class="nav-link" data-section="s1">Chime S1–S52</button>
+  <button class="nav-link" data-section="s2">Curse spre XAR1</button>
+  <button class="nav-link" data-section="s3">Curse intermodale</button>
 
-      <button class="nav-link active" data-section="s1">Chime S1–S52 <span class="txt"></span></button>
-      <button class="nav-link" data-section="s2">Curse spre XAR1 <span class="txt"></span></button>
-      <button class="nav-link" data-section="s3">Curse intermodale <span class="txt"></span></button>
+  <hr>
+  <button id="wipeBtn" class="danger">Șterge datele locale</button>
+</aside>
 
-      <button id="wipeBtn" class="nav-link danger">Șterge datele locale</button>
-
-      <p class="muted" style="margin-top:8px">
-        Datele se încarcă din <code>/data/*.csv</code>.<br />
-        Butonul de mai sus șterge doar cache-ul local.
-      </p>
-    </aside>
-
-    <!-- CONTENT -->
-    <main class="content">
-      <!-- Toolbar: search + counters + collapse -->
-      <div class="toolbar">
-        <div class="search">
-          <input id="searchInput" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
-          <span id="searchCount" class="chip muted">0/0</span>
-          <div class="btn" id="prevBtn" title="Anterior">↑</div>
-          <div class="btn" id="nextBtn" title="Următor">↓</div>
-        </div>
-        <button id="collapseBtn" class="btn collapse-btn" title="Ascunde/arată meniul">☰</button>
-        <span id="status" class="status"></span>
-      </div>
-
-      <div class="views">
-        <!-- S1 -->
-        <section id="s1" class="view active">
-          <div class="card">
-            <h3>Chime S1–S52</h3>
-            <div id="out-s1" class="out"></div>
-          </div>
-        </section>
-
-        <!-- S2 -->
-        <section id="s2" class="view">
-          <div class="card">
-            <h3>Curse spre XAR1</h3>
-            <div id="out-s2" class="out"></div>
-          </div>
-        </section>
-
-        <!-- S3 (intermodale) -->
-        <section id="s3" class="view">
-          <div class="card">
-            <h3>Curse intermodale</h3>
-            <div id="out-s3" class="out"></div>
-          </div>
-        </section>
-      </div>
-    </main>
+<!-- Conținut (dreapta) -->
+<main class="content">
+  <!-- bara de căutare + contor -->
+  <div class="searchbar">
+    <input id="searchInput" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)">
+    <span id="searchCount">0/0</span>
+    <button id="prevHit" title="Anterior">↑</button>
+    <button id="nextHit" title="Următor">↓</button>
+    <button id="toggleSidebar" title="Ascunde/arată meniul">≡</button>
+    <button id="themeBtn">Dark</button>
   </div>
 
-  <!-- App -->
-  <script defer src="./app.js?v=54"></script>
+  <!-- S1 -->
+  <section id="s1" class="view active">
+    <div class="card">
+      <div class="card-title">Chime S1–S52</div>
+      <div id="out-s1" class="out"></div>
+    </div>
+  </section>
+
+  <!-- S2 -->
+  <section id="s2" class="view">
+    <div class="card">
+      <div class="card-title">Curse spre XAR1</div>
+      <div id="out-s2" class="out"></div>
+    </div>
+  </section>
+
+  <!-- S3 -->
+  <section id="s3" class="view">
+    <div class="card">
+      <div class="card-title">Curse intermodale</div>
+      <div id="out-s3" class="out"></div>
+    </div>
+  </section>
+</main>
+
+<!-- IMPORTANT: bump cache-bust aici -->
+<script defer src="./app.js?v=54"></script>
+
 
   <script>
     // Mic bootstrap de UI (dark + collapse + nav). Logica mare e în app.js.
