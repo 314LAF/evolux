@@ -1,255 +1,258 @@
-/* ========= utilitare generale ========= */
+/* app.js — vizualizator CSV (S1 + S2) cu parsare robustă */
+(() => {
+  // === Config ===
+  const PATHS = {
+    s1: "data/s1.csv",
+    s2: "data/s2.csv",
+  };
 
-const ls = window.localStorage;
-const THEME_KEY = "app-theme";
-const ADMIN_PIN = "1234"; // <<<<< schimbă după nevoie
+  // Regex utilitare (RO)
+  const ZILE = "(Luni|Marți|Miercuri|Joi|Vineri|Sâmbătă|Duminică)";
+  const RE_TS_ENDS_WEEKDAY = new RegExp(`^\\s*(.+?\\s-\\s${ZILE})\\s*(?:.*)$`, "i");
+  const RE_TIME_IN_TEXT = /(.+?\b\d{2}:\d{2}:\d{2})/;      // ia până la ultima oră
+  const RE_ROUTE_XAR1    = /(.+?XAR1)\b/i;                 // taie după XAR1
+  const RE_SENDER        = /\s*([^<>,]+?)\s*<([^>]+)>\s*$/; // „Nume Prenume <mail>”
 
-function applyTheme(t) {
-  document.body.classList.toggle("dark", t === "dark");
-  const b = document.getElementById("themeBtn");
-  b.textContent = document.body.classList.contains("dark") ? "Light" : "Dark";
-}
-function setTheme(t){ ls.setItem(THEME_KEY,t); applyTheme(t); }
+  // Elemente UI
+  const el = (id) => document.getElementById(id);
+  const outS1 = el("out-s1");
+  const outS2 = el("out-s2");
+  const statusEl = el("status") || { textContent:"" };
 
-/* CSV via PapaParse (robust) */
-async function fetchCsv(url){
-  const res = await fetch(url, { cache: "no-store" });
-  if(!res.ok) throw new Error(`HTTP ${res.status}`);
-  const text = await res.text();
-  const parsed = Papa.parse(text, {
-    header:true,
-    skipEmptyLines:"greedy",
-    transformHeader:h => (h||"").trim(),
-    transform:v => (v ?? "").trim()
+  // Dark toggle simplu
+  const themeBtn = el("themeBtn");
+  const THEME_KEY = "app-theme";
+  const applyTheme = (t) => {
+    document.body.classList.toggle("dark", t === "dark");
+    if (themeBtn) themeBtn.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+  };
+  applyTheme(localStorage.getItem(THEME_KEY) || "light");
+  themeBtn?.addEventListener("click", () => {
+    const next = document.body.classList.contains("dark") ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
   });
-  if(parsed.errors?.length){
-    console.warn("CSV warnings:", parsed.errors.slice(0,5));
+
+  // Helpers
+  const setStatus = (msg, err=false) => {
+    if (!statusEl) return;
+    statusEl.textContent = msg || "";
+    statusEl.style.color = err ? "#b91c1c" : "var(--muted)";
+  };
+
+  const fetchText = async (url) => {
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) throw new Error(`${r.status}`);
+    return r.text();
+  };
+
+  // Papa Parse (din xlsx.full.min.js nu avem Papa; îl folosim inline via global dacă e inclus;
+  // pe GitHub Pages avem Papa? Dacă nu, folosim un parser minimal.)
+  // Ca să fim siguri, implementăm o parsare simplă compatibilă cu CSV cu ghilimele.
+  function parseCSV(text) {
+    // Dacă există Papa, folosește-l (mai tolerant)
+    if (window.Papa) {
+      const out = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: "greedy",
+        transformHeader: (h) => (h || "").trim(),
+      });
+      return { rows: out.data, fields: out.meta.fields || [] };
+    }
+
+    // Parser minimalist pentru CSV în ghilimele duble
+    const lines = text.replace(/\r\n?/g, "\n").split("\n");
+    if (!lines.length) return { rows: [], fields: [] };
+
+    // Sparge o linie CSV respectând ghilimelele
+    const splitCSV = (line) => {
+      const cells = [];
+      let cur = "", q = false;
+      for (let i=0; i<line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (q && line[i+1] === '"') { cur += '"'; i++; }
+          else q = !q;
+        } else if (ch === ',' && !q) {
+          cells.push(cur); cur = "";
+        } else {
+          cur += ch;
+        }
+      }
+      cells.push(cur);
+      return cells.map(s => s.trim());
+    };
+
+    const headerCells = splitCSV(lines[0]).map(h => h.trim());
+    const rows = [];
+    for (let i=1; i<lines.length; i++) {
+      const ln = lines[i];
+      if (!ln) continue;
+      const cells = splitCSV(ln);
+      const obj = {};
+      headerCells.forEach((h, idx) => obj[h] = (cells[idx] ?? "").trim());
+      // sare rândurile complet goale
+      if (Object.values(obj).some(v => v !== "")) rows.push(obj);
+    }
+    return { rows, fields: headerCells };
   }
-  return parsed.data; // array of objects
-}
 
-/* creează tabel generic din rows și headerele date */
-function tableFromRows(rows, headers) {
-  const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
-  const th = `<thead><tr>${headers.map(h=>`<th>${esc(h)}`).join("")}</tr></thead>`;
-  const tb = `<tbody>${
-    rows.map(r => `<tr>${headers.map(h => `<td>${esc(r[h] ?? "")}</td>`).join("")}</tr>`).join("")
-  }</tbody>`;
-  return `<table>${th}${tb}</table>`;
-}
+  // Render tabel simplu
+  function renderTable(container, rows, columns) {
+    container.innerHTML = "";
+    const table = document.createElement("table");
 
-/* ========= căutare cu highlight + navigare ========= */
+    const thead = document.createElement("thead");
+    const trh = document.createElement("tr");
+    columns.forEach(c => {
+      const th = document.createElement("th");
+      th.textContent = c;
+      trh.appendChild(th);
+    });
+    thead.appendChild(trh);
+    table.appendChild(thead);
 
-const Search = {
-  matches: [],
-  idx: -1,
-  input: null,
-  info: null,
-  onKey(e){
-    if(e.key === "Enter"){
-      if(e.shiftKey) Search.prev(); else Search.next();
+    const tbody = document.createElement("tbody");
+    rows.forEach(r => {
+      const tr = document.createElement("tr");
+      columns.forEach(c => {
+        const td = document.createElement("td");
+        td.textContent = r[c] ?? "";
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    container.appendChild(table);
+  }
+
+  // ========= S2 – normalizare strictă pe 4 coloane =========
+  function normalizeS2Row(r) {
+    let ts = (r["Timestamp"] ?? r["timestamp"] ?? "").trim();
+    let stop1 = (r["Stop 1 Info"] ?? r["Stop1"] ?? r["Stop 1"] ?? "").trim();
+    let route = (r["Route"] ?? "").trim();
+    let sender = (r["Sender"] ?? "").trim();
+
+    // Timestamp -> păstrează până la „ - Zi”
+    const mTs = ts.match(RE_TS_ENDS_WEEKDAY);
+    if (mTs) ts = mTs[1].trim();
+
+    // Stop 1 -> până la ultima oră găsită
+    const mSt = stop1.match(RE_TIME_IN_TEXT);
+    if (mSt) stop1 = mSt[1].trim();
+
+    // Route -> taie până la XAR1
+    const mRt = route.match(RE_ROUTE_XAR1);
+    if (mRt) route = mRt[1].trim();
+
+    // Sender -> doar „Nume Prenume <mail>”
+    const mSd = sender.match(RE_SENDER);
+    if (mSd) sender = `${mSd[1].trim()} <${mSd[2].trim()}>`;
+
+    return {
+      Timestamp: ts,
+      "Stop 1 Info": stop1,
+      Route: route,
+      Sender: sender,
+    };
+  }
+
+  async function loadS2() {
+    try {
+      const txt = await fetchText(PATHS.s2);
+      const { rows } = parseCSV(txt);
+
+      // Elimină rânduri #sep și rânduri complet goale
+      const cleared = rows.filter(r =>
+        r && Object.values(r).some(v => (v ?? "").trim() !== "") &&
+        !Object.values(r).some(v => (v ?? "").trim().toLowerCase() === "#sep")
+      );
+
+      const normalized = cleared.map(normalizeS2Row);
+      renderTable(outS2, normalized, ["Timestamp","Stop 1 Info","Route","Sender"]);
+      setStatus("");
+    } catch (e) {
+      outS2.innerHTML = `<div class="card" style="padding:16px">Nu am putut încărca S2 (HTTP ${e.message || e}).</div>`;
+    }
+  }
+
+  // ========= S1 – afișează tot ce e în CSV, fără să „mixeze” coloane =========
+  async function loadS1() {
+    try {
+      const txt = await fetchText(PATHS.s1);
+      const { rows, fields } = parseCSV(txt);
+
+      // filtrează rânduri complet goale; ignoră coloane goale 100%
+      const liveFields = fields.filter(k => rows.some(r => (r[k] ?? "").trim() !== ""));
+      const cleanedRows = rows
+        .filter(r => liveFields.some(k => (r[k] ?? "").trim() !== ""))
+        .map(r => {
+          const o = {};
+          liveFields.forEach(k => o[k] = (r[k] ?? "").trim());
+          return o;
+        });
+
+      renderTable(outS1, cleanedRows, liveFields);
+    } catch (e) {
+      outS1.innerHTML = `<div class="card" style="padding:16px">Nu am putut încărca S1 (HTTP ${e.message || e}).</div>`;
+    }
+  }
+
+  // Căutare (numără rezultate + navigare Enter / Shift+Enter)
+  const search = el("searchInput");
+  let searchHits = [];
+  let searchIdx = 0;
+
+  function clearHits() {
+    document.querySelectorAll("td.hit").forEach(td => td.classList.remove("hit"));
+    searchHits = []; searchIdx = 0;
+    const counter = el("searchCount"); if (counter) counter.textContent = "0/0";
+  }
+
+  function collectHits(query) {
+    clearHits();
+    if (!query) return;
+    const q = query.toLowerCase();
+    const activeView = document.querySelector(".view.active .out table") || document.querySelector(".view .out table");
+    if (!activeView) return;
+    const tds = Array.from(activeView.querySelectorAll("tbody td"));
+    tds.forEach(td => {
+      if ((td.textContent || "").toLowerCase().includes(q)) {
+        td.classList.add("hit");
+        searchHits.push(td);
+      }
+    });
+    const counter = el("searchCount"); 
+    if (counter) counter.textContent = `${searchHits.length ? 1 : 0}/${searchHits.length}`;
+    if (searchHits.length) {
+      searchIdx = 0;
+      searchHits[0].scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  function stepHit(dir) {
+    if (!searchHits.length) return;
+    searchIdx = (searchIdx + dir + searchHits.length) % searchHits.length;
+    searchHits[searchIdx].scrollIntoView({ behavior: "smooth", block: "center" });
+    const counter = el("searchCount");
+    if (counter) counter.textContent = `${searchIdx + 1}/${searchHits.length}`;
+  }
+
+  search?.addEventListener("input", (e) => collectHits(e.target.value));
+  search?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      stepHit(e.shiftKey ? -1 : +1);
       e.preventDefault();
     }
-  },
-  scan(){
-    const q = (Search.input.value || "").trim().toLowerCase();
-    const info = Search.info;
-    Search.matches = [];
-    Search.idx = -1;
-    const active = document.querySelector(".view:not([hidden])");
-    if(!active){ info.textContent = "0/0"; return; }
-    const table = active.querySelector("table");
-    if(!table){ info.textContent = "0/0"; return; }
-
-    table.querySelectorAll("td.hit").forEach(td=>td.classList.remove("hit"));
-
-    if(!q){ info.textContent = "0/0"; return; }
-
-    table.querySelectorAll("tbody td").forEach(td=>{
-      if((td.textContent||"").toLowerCase().includes(q)){
-        td.classList.add("hit");
-        Search.matches.push(td);
-      }
-    });
-    info.textContent = `0/${Search.matches.length}`;
-  },
-  goto(n){
-    if(!Search.matches.length) return;
-    if(n<0) n = Search.matches.length-1;
-    if(n>=Search.matches.length) n = 0;
-    Search.idx = n;
-    const td = Search.matches[Search.idx];
-    td.scrollIntoView({behavior:"smooth", block:"center"});
-    Search.info.textContent = `${Search.idx+1}/${Search.matches.length}`;
-  },
-  next(){ Search.goto(Search.idx + 1); },
-  prev(){ Search.goto(Search.idx - 1); }
-};
-
-/* ========= S2 – normalizare strictă ========= */
-
-const DAY_RX  = /(Luni|Mar[țt]i|Miercuri|Joi|Vineri|S[aâ]mb[ăa]t[ăa]|Duminic[ăa])$/i;
-const TIME_RX = /([01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/;
-const XAR1_RX = /(.*?\bXAR1)\b/i;
-const EMAIL_RX= /<[^<>@\s]+@[^<>@\s]+>/;
-
-function normalizeS2Row(raw){
-  // citește cu fallback pe nume alternative
-  let ts   = (raw["Timestamp"]   ?? raw["Timp"]   ?? raw["Time"]   ?? "").trim();
-  let stop = (raw["Stop 1 Info"] ?? raw["Step 1 Info"] ?? raw["Stop 1"] ?? "").trim();
-  let route= (raw["Route"]       ?? raw["Rută"]  ?? "").trim();
-  let snd  = (raw["Sender"]      ?? raw["Expeditor"] ?? "").trim();
-
-  /* Timestamp — taie până la ziua săptămânii, DAR dacă nu găsește, păstrează originalul */
-  if (ts) {
-    const m = ts.match(DAY_RX);
-    if (!m) {
-      const join = [ts, stop, route, snd].join(" ");
-      const m2 = join.match(DAY_RX);
-      if (m2) {
-        const cut = join.indexOf(m2[0]) + m2[0].length;
-        ts = join.slice(0, cut).trim();
-      }
-      // altfel: lasă ts așa cum e
-    }
-  }
-
-  /* Stop 1 Info — până la ultima oră, dar dacă nu e oră deloc → păstrează originalul */
-  if (stop) {
-    const m = stop.match(TIME_RX);
-    if (m) {
-      stop = stop.slice(0, stop.lastIndexOf(m[0]) + m[0].length).trim();
-    } else {
-      // încearcă să „împrumuți” o oră din câmpurile vecine, altfel păstrează stop
-      const join = [stop, route, snd].join(" ");
-      const mm = join.match(TIME_RX);
-      if (mm) {
-        const cut = join.indexOf(mm[0]) + mm[0].length;
-        const guess = join.slice(0, cut).trim();
-        // Acceptă doar dacă „guess” pornește cu textul stop-ului, ca să nu inventăm
-        if (guess.toLowerCase().startsWith(stop.toLowerCase())) stop = guess;
-      }
-    }
-  }
-
-  /* Route — până la XAR1; dacă nu găsește XAR1, păstrează originalul */
-  if (route) {
-    const m = route.match(XAR1_RX);
-    if (m) route = m[1].trim();
-  }
-
-  /* Sender — „Nume Prenume <email>” dacă există email; altfel păstrează originalul */
-  if (snd) {
-    snd = snd.replace(/\s+/g, " ").trim();
-    const m = snd.match(EMAIL_RX);
-    if (m) {
-      const email = m[0];
-      const name = snd.replace(EMAIL_RX, "").trim().replace(/[–-]\s*$/, "");
-      snd = name ? `${name} ${email}` : email;
-    }
-  }
-
-  // ca SIGURANȚĂ finală: dacă ceva a ajuns gol, pune valoarea brută la loc
-  const rawTs   = (raw["Timestamp"]   ?? raw["Timp"]   ?? raw["Time"]   ?? "").trim();
-  const rawStop = (raw["Stop 1 Info"] ?? raw["Step 1 Info"] ?? raw["Stop 1"] ?? "").trim();
-  const rawRoute= (raw["Route"]       ?? raw["Rută"]  ?? "").trim();
-  const rawSnd  = (raw["Sender"]      ?? raw["Expeditor"] ?? "").trim();
-
-  if (!ts)   ts   = rawTs;
-  if (!stop) stop = rawStop;
-  if (!route)route= rawRoute;
-  if (!snd)  snd  = rawSnd;
-
-  return { "Timestamp": ts, "Stop 1 Info": stop, "Route": route, "Sender": snd };
-}
-
-
-/* ========= încărcare & randare secțiuni ========= */
-
-async function loadS1(){
-  const host = './data/s1.csv?_=' + Date.now();
-  const out = document.getElementById('out-s1');
-  try{
-    const rows = await fetchCsv(host);
-
-    // elimină comentarii/separatoare (#, //, #sep)
-    const filtered = rows.filter(r=>{
-      const s = Object.values(r).join("").trim();
-      return s && !/^#/.test(s) && !/^\/\//.test(s) && !/^#sep$/i.test(s);
-    });
-
-    // headere din CSV în ordinea originală
-    const headers = Object.keys(rows[0] || {});
-    out.innerHTML = tableFromRows(filtered, headers);
-  }catch(e){
-    console.error(e);
-    out.innerHTML = `<div style="padding:16px;color:#64748b">Nu am putut încărca S1.</div>`;
-  }
-}
-
-async function loadS2(){
-  const host = './data/s2.csv?_=' + Date.now();
-  const out = document.getElementById('out-s2');
-  try{
-    const raw = await fetchCsv(host);
-    const cleaned = raw.filter(r=>{
-      const s = Object.values(r).join("").trim();
-      return s && !/^#/.test(s) && !/^\/\//.test(s) && !/^#sep$/i.test(s);
-    });
-    const rows = cleaned.map(normalizeS2Row);
-    const headers = ["Timestamp","Stop 1 Info","Route","Sender"]; // LOCKED
-    out.innerHTML = tableFromRows(rows, headers);
-  }catch(e){
-    console.error(e);
-    const msg = (e.message||"").includes("404") ? "Nu am putut încărca S2 (HTTP 404)." : "Nu am putut încărca S2.";
-    out.innerHTML = `<div style="padding:16px;color:#64748b">${msg}</div>`;
-  }
-}
-
-/* ========= inițializare UI ========= */
-
-document.addEventListener('DOMContentLoaded', () => {
-  // theme
-  applyTheme(ls.getItem(THEME_KEY) || "light");
-  document.getElementById('themeBtn').addEventListener('click', ()=>{
-    setTheme(document.body.classList.contains('dark') ? "light" : "dark");
   });
+  el("hitPrev")?.addEventListener("click", () => stepHit(-1));
+  el("hitNext")?.addEventListener("click", () => stepHit(+1));
 
-  // nav
-  document.querySelectorAll('.nav').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      document.querySelectorAll('.nav').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      const id = btn.dataset.target;
-      document.querySelectorAll('.view').forEach(v=>v.hidden = (v.id !== id));
-      // recalcul căutarea pe view-ul curent
-      Search.scan();
-    });
-  });
-
-  // search
-  Search.input = document.getElementById('search');
-  Search.info = document.getElementById('searchInfo');
-  Search.input.addEventListener('input', ()=>Search.scan());
-  Search.input.addEventListener('keydown', Search.onKey);
-  document.getElementById('nextBtn').addEventListener('click', ()=>Search.next());
-  document.getElementById('prevBtn').addEventListener('click', ()=>Search.prev());
-
-  // clear local (cu PIN)
-  document.getElementById('clearLocal').addEventListener('click', ()=>{
-    const pin = prompt("Introdu PIN de administrator pentru a șterge cache-ul local:");
-    if(pin === ADMIN_PIN){
-      // în prezent folosim localStorage doar pentru theme; dar lăsăm mecanismul pentru viitor
-      const keepTheme = ls.getItem(THEME_KEY);
-      ls.clear();
-      if(keepTheme) ls.setItem(THEME_KEY, keepTheme);
-      alert("Datele locale au fost șterse.");
-    }else if(pin !== null){
-      alert("PIN greșit.");
-    }
-  });
-
-  // load data
-  loadS1();
-  loadS2();
-});
+  // Load all
+  (async () => {
+    setStatus("Se încarcă datele…");
+    await Promise.all([loadS1(), loadS2()]);
+    setStatus("");
+  })();
+})();
