@@ -1,76 +1,125 @@
 <!doctype html>
 <html lang="ro">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Evolux</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evolux – Vizualizator</title>
   <style>
-    :root{--bg:#f7f8fb;--fg:#111827;--muted:#6b7280;--card:#fff;--line:#e5e7eb;}
-    body.dark{--bg:#0b1220;--fg:#e5e7eb;--muted:#9aa4b2;--card:#0e1626;--line:#1f2a44;}
-    html,body{height:100%} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,Segoe UI,Roboto,Arial}
-    .layout{display:grid;grid-template-columns:260px 1fr;min-height:100%}
-    .sidebar{border-right:1px solid var(--line);padding:10px}
-    .sidebar .nav-link, .sidebar .danger{display:block;width:100%;margin:6px 0;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;text-align:left}
-    .sidebar .nav-link.active{outline:2px solid #60a5fa}
-    .content{padding:12px}
-    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
-    .toolbar input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg)}
-    .pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);cursor:pointer}
-    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px}
-    .card-title{font-weight:600;margin:6px 8px 10px}
-    .view{display:none} .view.active{display:block}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-top:1px solid var(--line);padding:6px 8px;vertical-align:top}
-    th{position:sticky;top:0;background:var(--card);z-index:1}
-    tr.sep-row td{background:rgba(148,163,184,.16)}
-    .hit{outline:2px solid #f59e0b;outline-offset:-2px}
-    .nav-collapsed .sidebar{display:none}
+    :root{
+      --bg:#f7f8fb; --text:#0f172a; --card:#ffffff; --muted:#64748b;
+      --border:#e5e7eb; --hit:#fff3cd; --row-alt:#f8fafc; --sep:#eef2f7; --sep-line:#e3e8f0;
+    }
+    body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
+    .layout{ display:grid; grid-template-columns:220px 1fr; min-height:100vh; transition:grid-template-columns .18s ease; }
+    .layout.nav-collapsed{ grid-template-columns:0 1fr; }
+    aside{ background:var(--card); border-right:1px solid var(--border); padding:12px; overflow:hidden; }
+    aside h3{ margin:8px 0; font-size:13px; color:var(--muted); }
+    .btn{ display:inline-flex; align-items:center; justify-content:center; width:100%; padding:.6rem .8rem; border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
+    .btn:active{ transform:translateY(1px); }
+    .menu{ margin-top:8px; display:grid; gap:8px; }
+    .menu .nav{ text-align:left; }
+    .menu .nav.active{ outline:2px solid #111; }
+    main{ padding:12px 18px 48px; }
+    .toolbar{ display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+    .toolbar .ghost{ padding:8px 10px; border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
+    .toolbar input[type="text"]{ flex:1; padding:10px 12px; border:1px solid var(--border); border-radius:999px; }
+    .toolbar .ctr{ display:flex; gap:6px; align-items:center; }
+    .toolbar .ctr button{ padding:6px 10px; border:1px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 10px 14px; }
+    h2{ font-size:16px; font-weight:600; margin:6px 10px 12px; }
+    table{ width:100%; border-collapse:collapse; }
+    thead th{ position:sticky; top:0; background:var(--row-alt); border-bottom:1px solid var(--border); padding:8px; text-align:left; }
+    tbody td{ border-top:1px solid var(--border); padding:8px; vertical-align:top; }
+    td.hit{ background:var(--hit); }
+    tr.sep td{
+      padding:0!important; height:10px; background:var(--sep);
+      border:0; border-top:1px solid var(--sep-line); border-bottom:1px solid var(--sep-line);
+    }
+    .muted{ color:var(--muted); }
+    .p12{ padding:12px; }
+    .hidden{ display:none; }
+
+    /* Lane renderer */
+    .lane-wrap{ display:inline; }
+    .lane-first{ display:inline; }
+    .lane-more{
+      margin-left:6px; padding:0 8px; border:1px solid var(--border); background:var(--card);
+      border-radius:8px; cursor:pointer; font-size:12px;
+    }
+    .lane-full{ margin-top:6px; padding:6px; background:var(--row-alt); border:1px dashed var(--border); border-radius:8px; }
+
+    /* Dark */
+    body.dark{
+      --bg:#0b1220; --text:#e5e7eb; --card:#0f172a; --muted:#94a3b8;
+      --border:#1f2937; --row-alt:#0c162b; --sep:#0c1322; --sep-line:#142037; --hit:#3a2e00;
+    }
+    body.dark .btn, body.dark .toolbar .ctr button, body.dark .toolbar .ghost{ background:var(--card); color:var(--text); }
+    body.dark .menu .nav.active{ outline-color:#e5e7eb; }
+
+    /* „ureche” pt. meniu pliat */
+    #openNavHandle{
+      position:fixed; left:8px; top:14px; z-index:10;
+      padding:8px 10px; border:1px solid var(--border); background:var(--card); border-radius:10px; cursor:pointer;
+      display:none;
+    }
+    .layout.nav-collapsed #openNavHandle{ display:inline-flex; }
   </style>
 </head>
 <body>
-  <div class="layout" id="appRoot">
-    <aside class="sidebar" id="sidebar">
-      <button class="nav-link active" data-section="s1">Chime S1–S52</button>
-      <button class="nav-link" data-section="s2">Curse spre XAR1</button>
-      <button class="nav-link" data-section="s3">Curse intermodale</button>
-      <hr>
-      <button id="wipeBtn" class="danger">Șterge datele locale</button>
-    </aside>
+  <div id="openNavHandle" title="Deschide meniul">☰</div>
 
-    <main class="content">
-      <div class="toolbar">
-        <input id="searchInput" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)"/>
-        <span id="searchCount" class="pill">0/0</span>
-        <button id="prevHit" class="pill" title="Anterior">↑</button>
-        <button id="nextHit" class="pill" title="Următor">↓</button>
-        <button id="toggleSidebar" class="pill" title="Ascunde/arată meniul">≡</button>
-        <button id="themeBtn" class="pill" title="Dark/Light">Dark</button>
+  <div class="layout" id="appLayout">
+    <aside>
+      <button id="themeBtn" class="btn" style="margin-bottom:.5rem">Dark</button>
+
+      <h3>Meniu</h3>
+      <div class="menu">
+        <button class="btn nav active" data-section="s1">Chime S1–S52</button>
+        <button class="btn nav" data-section="s2">Curse spre XAR1</button>
+        <button class="btn nav" data-section="s3">Curse intermodale</button>
       </div>
 
-      <section id="s1" class="view active">
+      <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
+      <button id="clearLocal" class="btn" title="Șterge cache-ul local (dacă există)">Șterge datele locale</button>
+      <p class="muted" style="font-size:12px;margin-top:8px">Datele se încarcă din <code>/data/*.csv</code> (CSV sau TSV).</p>
+      <div id="status" class="muted" style="margin-top:8px;font-size:12px"></div>
+    </aside>
+
+    <main>
+      <div class="toolbar">
+        <button id="toggleNav" class="ghost" title="Pliază/Deschide meniul">⟨</button>
+        <input id="searchInput" type="text" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)">
+        <div class="ctr">
+          <span id="searchCount" class="muted">0/0</span>
+          <button id="searchPrev" title="Anterior">↑</button>
+          <button id="searchNext" title="Următor">↓</button>
+        </div>
+      </div>
+
+      <section id="s1" class="view">
         <div class="card">
-          <div class="card-title">Chime S1–S52</div>
-          <div id="out-s1" class="out"></div>
+          <h2>Chime S1–S52</h2>
+          <div class="out"></div>
         </div>
       </section>
 
-      <section id="s2" class="view">
+      <section id="s2" class="view hidden">
         <div class="card">
-          <div class="card-title">Curse spre XAR1</div>
-          <div id="out-s2" class="out"></div>
+          <h2>Curse spre XAR1</h2>
+          <div class="out"></div>
         </div>
       </section>
 
-      <section id="s3" class="view">
+      <section id="s3" class="view hidden">
         <div class="card">
-          <div class="card-title">Curse intermodale</div>
-          <div id="out-s3" class="out"></div>
+          <h2>Curse intermodale</h2>
+          <div class="out"></div>
         </div>
       </section>
     </main>
   </div>
 
-  <!-- bump cache-bust aici -->
-  <script defer src="./app.js?v=56"></script>
+  <!-- măriți numărul la fiecare update -->
+  <script defer src="./app.js?v=53"></script>
 </body>
 </html>
