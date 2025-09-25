@@ -1,6 +1,8 @@
-// Evolux – loader CSV/TSV + căutare cu contor + next/prev + suport #sep
+// Evolux – CSV/TSV viewer cu Dark Mode, #sep, căutare și S2 header lock
+// v51
+
 (function () {
-  // ===== helpers UI =====
+  // ===== helpers =====
   const $ = (id) => document.getElementById(id);
   const on = (id, ev, fn) => { const el = $(id); if (el) el.addEventListener(ev, fn); };
 
@@ -11,20 +13,33 @@
     statusEl.style.color = isErr ? '#b91c1c' : 'var(--muted)';
   };
 
-  // ===== navigație =====
+  // ===== Dark Mode =====
+  const THEME_KEY = 'evolux-theme';
+  function applyTheme(theme){
+    document.body.classList.toggle('dark', theme === 'dark');
+    const btn = $('themeBtn');
+    if (btn) btn.textContent = document.body.classList.contains('dark') ? 'Light' : 'Dark';
+  }
+  applyTheme(localStorage.getItem(THEME_KEY) || 'light');
+  on('themeBtn','click', ()=>{
+    const next = document.body.classList.contains('dark') ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+
+  // ===== Navigație =====
   function show(sectionId) {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     document.querySelector(`#${sectionId}`).classList.remove('hidden');
     document.querySelectorAll('.menu .nav').forEach(b => b.classList.toggle('active', b.dataset.section===sectionId));
-    filterAndCount(); // re-apply search pe view curent
+    filterAndCount(); // re-apply search
   }
   document.querySelectorAll('.menu .nav').forEach(b=>{
     b.addEventListener('click', ()=> show(b.dataset.section));
   });
 
-  // ===== căutare =====
+  // ===== Căutare =====
   let hits = [], hitIndex = -1;
-
   function filterAndCount() {
     const q = ($('#searchInput')?.value || '').trim().toLowerCase();
     const current = document.querySelector('.menu .nav.active')?.dataset.section || 's1';
@@ -58,14 +73,14 @@
   on('searchPrev','click', ()=> jumpHit(-1));
   on('searchNext','click', ()=> jumpHit(+1));
 
-  // ===== buton ștergere cache local =====
+  // ===== Buton ștergere cache local (opțional) =====
   on('clearLocal','click', ()=>{
     localStorage.clear();
     setStatus('Cache local șters. Reîncarc…');
     location.reload();
   });
 
-  // ===== CSV/TSV loader (cu suport #sep) =====
+  // ===== CSV/TSV loader (cu #sep) =====
   async function loadCSV(url) {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status} la ${url}`);
@@ -73,25 +88,22 @@
     const text = await res.text();
     const rawLines = text.replace(/\r\n?/g, '\n').split('\n');
 
-    // construim o listă „logică” de elemente: ori {sep:true}, ori string de linie
+    // listă logică: {sep:true} sau linie brută
     const logical = [];
     for (const lineRaw of rawLines) {
-      const line = lineRaw.trim();
-      if (!line) continue;
-      if (/^##/.test(line)) continue;           // comentarii -> ignor
-      if (/^#sep\b/i.test(line)) {               // separator -> element special
-        logical.push({ sep: true });
-        continue;
-      }
-      logical.push(lineRaw);                     // păstrăm EXACT linia (nu trim) pt. parser
+      const trimmed = lineRaw.trim();
+      if (!trimmed) continue;
+      if (/^##/.test(trimmed)) continue;       // comentariu
+      if (/^#sep\b/i.test(trimmed)) { logical.push({ sep:true }); continue; }
+      logical.push(lineRaw);                    // păstrăm linia exactă pt parser
     }
     if (!logical.length) return { headers: [], rows: [] };
 
-    // găsim prima linie care nu e sep (să luăm headerul)
+    // prima linie non-sep = header
     const firstDataLine = logical.find(x => typeof x === 'string');
     if (!firstDataLine) return { headers: [], rows: [] };
 
-    // detectăm delim (CSV/TSV)
+    // detectăm delimitator (CSV/TSV)
     const guessDelim = (s) => (s.includes('\t') && !s.includes(',')) ? '\t' : ',';
     const delim = guessDelim(firstDataLine);
 
@@ -111,66 +123,85 @@
       return out;
     };
 
-    // headerul = prima linie non-sep
-    const headerLine = firstDataLine;
-    const headersRaw = parseLine(headerLine).map(h=>h.trim());
+    const headersRaw = parseLine(firstDataLine).map(h=>h.trim());
 
-    // LOCK-urile de header (ce afișăm efectiv)
-    const lock = {
-      s1: ["Timestamp","Type","From","Cine • Ora (din A-F)","Tipar tura","Program de lucru","ACC • Sea Lanes","Rail","Bids"],
-      s2: ["Timestamp","Stop 1 Info","Route","Sender"]
-    };
-    const isS2 = /\/s2\.csv/i.test(url);
-    const locked = isS2 ? lock.s2 : lock.s1;
-
-    // parcurgem restul „logical” și construim rânduri + separatoare
+    // parcurgem restul și construim rândurile
     const rows = [];
     let headerConsumed = false;
+
+    // recunoaște linii de tip separator și variante (prima coloană #sep/sep/---, restul goale)
+    const isSepCells = (cells) => {
+      const first = (cells[0] || '').trim().toLowerCase();
+      const restEmpty = cells.slice(1).every(c => String(c).trim() === '');
+      return (first === '#sep' || first === 'sep' || /^-+$/.test(first)) && restEmpty;
+    };
+
     for (const item of logical) {
-      if (typeof item !== 'string') {            // {sep:true}
-        rows.push('__SEP__');
-        continue;
-      }
-      if (!headerConsumed) {                     // sărim prima linie (headerul) o singură dată
-        headerConsumed = true;
-        continue;
-      }
-      const cols = parseLine(item);
-      const c = cols.slice(0, locked.length);
-      while (c.length < locked.length) c.push('');
-      rows.push(c);
+      if (typeof item !== 'string') { rows.push('__SEP__'); continue; } // separator brut
+      if (!headerConsumed) { headerConsumed = true; continue; }         // skip header
+      const cells = parseLine(item);
+      if (isSepCells(cells)) { rows.push('__SEP__'); continue; }
+      rows.push(cells);
     }
 
-    return { headers: locked, rows };
+    return { headers: headersRaw, rows };
   }
 
-  function esc(s){ return String(s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+  function esc(s){ return String(s ?? '').replace(/[&<>"]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
 
-  function renderTable(section, rows, headers) {
-    const host = document.querySelector(`#${section} .out`);
-    if (!host) return;
+  function renderTable(sectionId, parsed, lockHeaders=null) {
+    const wrap = document.querySelector(`#${sectionId} .out`);
+    if (!wrap) return;
 
-    if (!rows.length) { host.innerHTML = '<div class="muted p16">Nu sunt date.</div>'; return; }
+    if (!parsed || !parsed.headers || !parsed.rows.length) {
+      wrap.innerHTML = '<div class="muted p12">Nu sunt date.</div>';
+      return;
+    }
 
-    const thead = `<thead><tr>${headers.map(h=>`<th>${esc(h)}`).join('</th>')}</th></tr></thead>`;
-    const bodyHtml = rows.map(r=>{
+    // dacă avem lock (S2), mapăm coloanele în ordinea dorită
+    let headers = parsed.headers.slice();
+    let rows = parsed.rows.slice();
+
+    if (lockHeaders && Array.isArray(lockHeaders)) {
+      const idx = lockHeaders.map(h => headers.indexOf(h));
+      headers = lockHeaders.slice();
+      rows = rows.map(r=>{
+        if (r === '__SEP__') return '__SEP__';
+        const out = lockHeaders.map((_,i)=> idx[i] >= 0 ? (r[idx[i]] ?? '') : '');
+        return out;
+      });
+    }
+
+    let html = '<table><thead><tr>';
+    html += headers.map(h=>`<th>${esc(h)}`).join('</th>') + '</th></tr></thead><tbody>';
+
+    html += rows.map(r=>{
       if (r === '__SEP__') return `<tr class="sep"><td colspan="${headers.length}"></td></tr>`;
-      return `<tr>${r.map(v=>`<td>${esc(v)}`).join('</td>')}</td></tr>`;
+      return `<tr>${r.map(v=>`<td>${esc(v)}`).join('</td>') }</td></tr>`;
     }).join('');
 
-    host.innerHTML = `<table>${thead}<tbody>${bodyHtml}</tbody></table>`;
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+
+    // re-apply search dacă e cazul
+    if (($('searchInput')?.value || '').trim()) filterAndCount();
   }
 
   async function boot() {
     try {
       setStatus('Încarc datele…');
-      const v = 49; // << crește când faci noi modificări
+      const v = 51; // cache-bust pentru CSV-uri
+
+      // Încarcă S1 și S2
       const [s1, s2] = await Promise.all([
-        loadCSV(`data/s1.csv?v=${v}`),
-        loadCSV(`data/s2.csv?v=${v}`),
+        loadCSV(`data/s1.csv?v=${v}`), // S1: afișăm TOT ce vine
+        loadCSV(`data/s2.csv?v=${v}`), // S2: header lock pe 4 coloane
       ]);
-      renderTable('s1', s1.rows, s1.headers);
-      renderTable('s2', s2.rows, s2.headers);
+
+      renderTable('s1', s1, null);
+      renderTable('s2', s2, ['Timestamp','Stop 1 Info','Route','Sender']);
+
+      // pornește pe S1
       show('s1');
       setStatus('Gata.');
     } catch (e) {
@@ -179,5 +210,6 @@
     }
   }
 
+  // Start
   boot();
 })();
