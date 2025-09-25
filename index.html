@@ -3,123 +3,183 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Evolux – Vizualizator</title>
+  <title>EvoluX – Tabele</title>
   <style>
     :root{
-      --bg:#f7f8fb; --text:#0f172a; --card:#ffffff; --muted:#64748b;
-      --border:#e5e7eb; --hit:#fff3cd; --row-alt:#f8fafc; --sep:#eef2f7; --sep-line:#e3e8f0;
+      --bg:#ffffff; --fg:#0f172a; --card:#f8fafc; --muted:#64748b; --muted-bg:#eef2f7; --accent:#2563eb;
+      --border:#e5e7eb;
     }
-    body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
-    .layout{ display:grid; grid-template-columns:220px 1fr; min-height:100vh; transition:grid-template-columns .18s ease; }
-    .layout.nav-collapsed{ grid-template-columns:0 1fr; }
-    aside{ background:var(--card); border-right:1px solid var(--border); padding:12px; overflow:hidden; }
-    aside h3{ margin:8px 0; font-size:13px; color:var(--muted); }
-    .btn{ display:inline-flex; align-items:center; justify-content:center; width:100%; padding:.6rem .8rem; border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
-    .btn:active{ transform:translateY(1px); }
-    .menu{ margin-top:8px; display:grid; gap:8px; }
-    .menu .nav{ text-align:left; }
-    .menu .nav.active{ outline:2px solid #111; }
-    main{ padding:12px 18px 48px; }
-    .toolbar{ display:flex; gap:8px; align-items:center; margin-bottom:12px; }
-    .toolbar .ghost{ padding:8px 10px; border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
-    .toolbar input[type="text"]{ flex:1; padding:10px 12px; border:1px solid var(--border); border-radius:999px; }
-    .toolbar .ctr{ display:flex; gap:6px; align-items:center; }
-    .toolbar .ctr button{ padding:6px 10px; border:1px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; }
-    .card{ background:var(--card); border:1px solid var(--border); border-radius:12px; padding:10px 10px 14px; }
-    h2{ font-size:16px; font-weight:600; margin:6px 10px 12px; }
-    table{ width:100%; border-collapse:collapse; }
-    thead th{ position:sticky; top:0; background:var(--row-alt); border-bottom:1px solid var(--border); padding:8px; text-align:left; }
-    tbody td{ border-top:1px solid var(--border); padding:8px; vertical-align:top; }
-    td.hit{ background:var(--hit); }
-    tr.sep td{
-      padding:0!important; height:10px; background:var(--sep);
-      border:0; border-top:1px solid var(--sep-line); border-bottom:1px solid var(--sep-line);
-    }
-    .muted{ color:var(--muted); }
-    .p12{ padding:12px; }
-    .hidden{ display:none; }
-
-    /* Lane renderer */
-    .lane-wrap{ display:inline; }
-    .lane-first{ display:inline; }
-    .lane-more{
-      margin-left:6px; padding:0 8px; border:1px solid var(--border); background:var(--card);
-      border-radius:8px; cursor:pointer; font-size:12px;
-    }
-    .lane-full{ margin-top:6px; padding:6px; background:var(--row-alt); border:1px dashed var(--border); border-radius:8px; }
-
-    /* Dark */
     body.dark{
-      --bg:#0b1220; --text:#e5e7eb; --card:#0f172a; --muted:#94a3b8;
-      --border:#1f2937; --row-alt:#0c162b; --sep:#0c1322; --sep-line:#142037; --hit:#3a2e00;
+      --bg:#0b1220; --fg:#e5e7eb; --card:#121a2a; --muted:#94a3b8; --muted-bg:#0f172a; --accent:#60a5fa;
+      --border:#1f2a3b;
     }
-    body.dark .btn, body.dark .toolbar .ctr button, body.dark .toolbar .ghost{ background:var(--card); color:var(--text); }
-    body.dark .menu .nav.active{ outline-color:#e5e7eb; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,'Noto Sans',sans-serif}
+    .app{display:grid;grid-template-columns:260px 1fr;min-height:100svh}
+    .sidebar{border-right:1px solid var(--border);padding:12px}
+    .sidebar .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
+    .sidebar .title{font-weight:600}
+    .btn, .nav-link{
+      appearance:none;border:1px solid var(--border);background:var(--card);color:var(--fg);
+      border-radius:10px;padding:8px 10px;cursor:pointer;transition:.15s;
+    }
+    .btn:hover,.nav-link:hover{border-color:var(--accent)}
+    .nav-link{display:block;width:100%;text-align:left;margin:8px 0}
+    .nav-link.active{outline:2px solid var(--accent)}
+    .danger{border-color:#b91c1c;color:#b91c1c}
+    .muted{color:var(--muted)}
+    .content{padding:14px 18px}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+    .search{
+      display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--border);
+      border-radius:999px;padding:6px 8px;min-width:380px;max-width:700px;width:100%;
+    }
+    .search input{flex:1;border:0;outline:0;background:transparent;color:var(--fg)}
+    .search .chip{font-variant-numeric:tabular-nums}
+    .card{
+      background:var(--card);border:1px solid var(--border);border-radius:14px;padding:10px 12px;
+      box-shadow:0 1px 0 rgba(0,0,0,.04) inset;
+    }
+    h3{margin:6px 0 12px 0;font-size:15px}
+    .views .view{display:none}
+    .views .view.active{display:block}
 
-    /* „ureche” pt. meniu pliat */
-    #openNavHandle{
-      position:fixed; left:8px; top:14px; z-index:10;
-      padding:8px 10px; border:1px solid var(--border); background:var(--card); border-radius:10px; cursor:pointer;
-      display:none;
-    }
-    .layout.nav-collapsed #openNavHandle{ display:inline-flex; }
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    th,td{border-top:1px solid var(--border);padding:8px 10px;vertical-align:top}
+    thead th{position:sticky;top:0;background:var(--card);z-index:1}
+    tbody tr:nth-child(2) td{border-top-color:var(--border)}
+    tbody tr:hover td{background:color-mix(in oklab, var(--card) 90%, var(--accent) 10%)}
+    .sep-row td{background:var(--muted-bg);color:var(--muted);font-style:italic}
+    .hit{background:color-mix(in oklab, var(--card) 85%, var(--accent) 25%)}
+
+    /* Expander Lane (S3) */
+    details.lanes summary{cursor:pointer;outline:none;list-style:none}
+    details.lanes summary::-webkit-details-marker{display:none}
+    details.lanes .lanes-all{margin-top:.35rem;line-height:1.35}
+    .status{margin-left:auto;color:var(--muted);font-size:12px}
+    .collapse-btn{margin-left:8px}
+    .collapsed .sidebar{width:56px}
+    .collapsed .nav-link .txt{display:none}
+    .collapsed .title{display:none}
+    .collapsed .sidebar{padding:12px 8px}
+    .collapsed .content{padding-left:10px}
   </style>
 </head>
 <body>
-  <div id="openNavHandle" title="Deschide meniul">☰</div>
-
-  <div class="layout" id="appLayout">
-    <aside>
-      <button id="themeBtn" class="btn" style="margin-bottom:.5rem">Dark</button>
-
-      <h3>Meniu</h3>
-      <div class="menu">
-        <button class="btn nav active" data-section="s1">Chime S1–S52</button>
-        <button class="btn nav" data-section="s2">Curse spre XAR1</button>
-        <button class="btn nav" data-section="s3">Curse intermodale</button>
+  <div class="app" id="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="row">
+        <div class="title">Meniu</div>
+        <button id="darkBtn" class="btn" title="Dark/Light">Dark</button>
       </div>
 
-      <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)">
-      <button id="clearLocal" class="btn" title="Șterge cache-ul local (dacă există)">Șterge datele locale</button>
-      <p class="muted" style="font-size:12px;margin-top:8px">Datele se încarcă din <code>/data/*.csv</code> (CSV sau TSV).</p>
-      <div id="status" class="muted" style="margin-top:8px;font-size:12px"></div>
+      <button class="nav-link active" data-section="s1">Chime S1–S52 <span class="txt"></span></button>
+      <button class="nav-link" data-section="s2">Curse spre XAR1 <span class="txt"></span></button>
+      <button class="nav-link" data-section="s3">Curse intermodale <span class="txt"></span></button>
+
+      <button id="wipeBtn" class="nav-link danger">Șterge datele locale</button>
+
+      <p class="muted" style="margin-top:8px">
+        Datele se încarcă din <code>/data/*.csv</code>.<br />
+        Butonul de mai sus șterge doar cache-ul local.
+      </p>
     </aside>
 
-    <main>
+    <!-- CONTENT -->
+    <main class="content">
+      <!-- Toolbar: search + counters + collapse -->
       <div class="toolbar">
-        <button id="toggleNav" class="ghost" title="Pliază/Deschide meniul">⟨</button>
-        <input id="searchInput" type="text" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)">
-        <div class="ctr">
-          <span id="searchCount" class="muted">0/0</span>
-          <button id="searchPrev" title="Anterior">↑</button>
-          <button id="searchNext" title="Următor">↓</button>
+        <div class="search">
+          <input id="searchInput" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
+          <span id="searchCount" class="chip muted">0/0</span>
+          <div class="btn" id="prevBtn" title="Anterior">↑</div>
+          <div class="btn" id="nextBtn" title="Următor">↓</div>
         </div>
+        <button id="collapseBtn" class="btn collapse-btn" title="Ascunde/arată meniul">☰</button>
+        <span id="status" class="status"></span>
       </div>
 
-      <section id="s1" class="view">
-        <div class="card">
-          <h2>Chime S1–S52</h2>
-          <div class="out"></div>
-        </div>
-      </section>
+      <div class="views">
+        <!-- S1 -->
+        <section id="s1" class="view active">
+          <div class="card">
+            <h3>Chime S1–S52</h3>
+            <div id="out-s1" class="out"></div>
+          </div>
+        </section>
 
-      <section id="s2" class="view hidden">
-        <div class="card">
-          <h2>Curse spre XAR1</h2>
-          <div class="out"></div>
-        </div>
-      </section>
+        <!-- S2 -->
+        <section id="s2" class="view">
+          <div class="card">
+            <h3>Curse spre XAR1</h3>
+            <div id="out-s2" class="out"></div>
+          </div>
+        </section>
 
-      <section id="s3" class="view hidden">
-        <div class="card">
-          <h2>Curse intermodale</h2>
-          <div class="out"></div>
-        </div>
-      </section>
+        <!-- S3 (intermodale) -->
+        <section id="s3" class="view">
+          <div class="card">
+            <h3>Curse intermodale</h3>
+            <div id="out-s3" class="out"></div>
+          </div>
+        </section>
+      </div>
     </main>
   </div>
 
-  <!-- măriți numărul la fiecare update -->
-  <script defer src="./app.js?v=53"></script>
+  <!-- App -->
+  <script defer src="./app.js?v=48"></script>
+
+  <script>
+    // Mic bootstrap de UI (dark + collapse + nav). Logica mare e în app.js.
+    (function(){
+      const app = document.getElementById('app');
+      const darkBtn = document.getElementById('darkBtn');
+      const collapseBtn = document.getElementById('collapseBtn');
+      const searchInput = document.getElementById('searchInput');
+      const searchCount = document.getElementById('searchCount');
+      const nextBtn = document.getElementById('nextBtn');
+      const prevBtn = document.getElementById('prevBtn');
+
+      // Dark
+      const THEME_KEY='app-theme';
+      function applyTheme(t){ document.body.classList.toggle('dark', t==='dark'); darkBtn.textContent = document.body.classList.contains('dark')?'Light':'Dark'; }
+      applyTheme(localStorage.getItem(THEME_KEY)||'light');
+      darkBtn.addEventListener('click', ()=>{
+        const nxt = document.body.classList.contains('dark')?'light':'dark';
+        localStorage.setItem(THEME_KEY, nxt); applyTheme(nxt);
+      });
+
+      // Collapse
+      collapseBtn.addEventListener('click', ()=> app.classList.toggle('collapsed'));
+
+      // Navegare
+      const views = [...document.querySelectorAll('.view')];
+      function show(id){
+        views.forEach(v=>v.classList.toggle('active', v.id===id));
+        document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active', b.dataset.section===id));
+        // anunță app.js (are hook-uri pentru încărcări)
+        document.dispatchEvent(new CustomEvent('view:change', { detail:{id} }));
+      }
+      document.querySelectorAll('.nav-link[data-section]').forEach(b=>{
+        b.addEventListener('click', ()=> show(b.dataset.section));
+      });
+
+      // Search UI – app.js se ocupă de highlight; aici doar forward controalele
+      nextBtn.addEventListener('click', ()=> document.dispatchEvent(new CustomEvent('search:next')));
+      prevBtn.addEventListener('click', ()=> document.dispatchEvent(new CustomEvent('search:prev')));
+      searchInput.addEventListener('input', e=> document.dispatchEvent(new CustomEvent('search:q',{detail:{q:e.target.value}})));
+
+      // App.js actualizează counterul
+      document.addEventListener('search:count', e=>{
+        const {idx,total} = e.detail||{idx:0,total:0};
+        searchCount.textContent = `${total?idx+1:0}/${total||0}`;
+      });
+
+      // pornește pe S1
+      show('s1');
+    })();
+  </script>
 </body>
 </html>
