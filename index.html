@@ -46,12 +46,14 @@
 
   <main class="content">
     <div class="searchbar">
-      <input id="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)">
-      <span class="chip" id="hits">0/0</span>
-      <button id="prev" title="Anterior">˄</button>
-      <button id="next" title="Următor">˅</button>
-      <button id="clear" title="Șterge căutarea">×</button>
-    </div>
+  <input id="searchInput" placeholder="Caută în tabelul curent…">
+  <span id="resCount">0/0</span>
+  <button id="prevHit" title="Anterior">↑</button>
+  <button id="nextHit" title="Următor">↓</button>
+  <button id="clearSearch" title="Curăță">✕</button>
+</div>
+<div id="status" class="status"></div>
+<button id="wipeBtn" class="danger">Șterge datele locale</button>
 
     <section id="s1" class="view active">
       <h2>Chime S1–S52</h2>
@@ -72,6 +74,6 @@
   </main>
 
   <!-- Crește versiunea la fiecare update ca să spargi cache-ul -->
-  <script defer src="./app.js?v=44"></script>
+  <script defer src="./app.js?v=45"></script>
 </body>
 </html>
