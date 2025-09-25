@@ -1,172 +1,76 @@
 <!doctype html>
 <html lang="ro">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>EvoluX – Tabele</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Evolux</title>
   <style>
-    :root{
-      --bg:#ffffff; --fg:#0f172a; --card:#f8fafc; --muted:#64748b; --muted-bg:#eef2f7; --accent:#2563eb;
-      --border:#e5e7eb;
-    }
-    body.dark{
-      --bg:#0b1220; --fg:#e5e7eb; --card:#121a2a; --muted:#94a3b8; --muted-bg:#0f172a; --accent:#60a5fa;
-      --border:#1f2a3b;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial,'Noto Sans',sans-serif}
-    .app{display:grid;grid-template-columns:260px 1fr;min-height:100svh}
-    .sidebar{border-right:1px solid var(--border);padding:12px}
-    .sidebar .row{display:flex;gap:8px;align-items:center;justify-content:space-between}
-    .sidebar .title{font-weight:600}
-    .btn, .nav-link{
-      appearance:none;border:1px solid var(--border);background:var(--card);color:var(--fg);
-      border-radius:10px;padding:8px 10px;cursor:pointer;transition:.15s;
-    }
-    .btn:hover,.nav-link:hover{border-color:var(--accent)}
-    .nav-link{display:block;width:100%;text-align:left;margin:8px 0}
-    .nav-link.active{outline:2px solid var(--accent)}
-    .danger{border-color:#b91c1c;color:#b91c1c}
-    .muted{color:var(--muted)}
-    .content{padding:14px 18px}
-    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
-    .search{
-      display:flex;gap:8px;align-items:center;background:var(--card);border:1px solid var(--border);
-      border-radius:999px;padding:6px 8px;min-width:380px;max-width:700px;width:100%;
-    }
-    .search input{flex:1;border:0;outline:0;background:transparent;color:var(--fg)}
-    .search .chip{font-variant-numeric:tabular-nums}
-    .card{
-      background:var(--card);border:1px solid var(--border);border-radius:14px;padding:10px 12px;
-      box-shadow:0 1px 0 rgba(0,0,0,.04) inset;
-    }
-    h3{margin:6px 0 12px 0;font-size:15px}
-    .views .view{display:none}
-    .views .view.active{display:block}
-
-    table{width:100%;border-collapse:separate;border-spacing:0}
-    th,td{border-top:1px solid var(--border);padding:8px 10px;vertical-align:top}
-    thead th{position:sticky;top:0;background:var(--card);z-index:1}
-    tbody tr:nth-child(2) td{border-top-color:var(--border)}
-    tbody tr:hover td{background:color-mix(in oklab, var(--card) 90%, var(--accent) 10%)}
-    .sep-row td{background:var(--muted-bg);color:var(--muted);font-style:italic}
-    .hit{background:color-mix(in oklab, var(--card) 85%, var(--accent) 25%)}
-
-    /* Expander Lane (S3) */
-    details.lanes summary{cursor:pointer;outline:none;list-style:none}
-    details.lanes summary::-webkit-details-marker{display:none}
-    details.lanes .lanes-all{margin-top:.35rem;line-height:1.35}
-    .status{margin-left:auto;color:var(--muted);font-size:12px}
-    .collapse-btn{margin-left:8px}
-    .collapsed .sidebar{width:56px}
-    .collapsed .nav-link .txt{display:none}
-    .collapsed .title{display:none}
-    .collapsed .sidebar{padding:12px 8px}
-    .collapsed .content{padding-left:10px}
+    :root{--bg:#f7f8fb;--fg:#111827;--muted:#6b7280;--card:#fff;--line:#e5e7eb;}
+    body.dark{--bg:#0b1220;--fg:#e5e7eb;--muted:#9aa4b2;--card:#0e1626;--line:#1f2a44;}
+    html,body{height:100%} body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,Segoe UI,Roboto,Arial}
+    .layout{display:grid;grid-template-columns:260px 1fr;min-height:100%}
+    .sidebar{border-right:1px solid var(--line);padding:10px}
+    .sidebar .nav-link, .sidebar .danger{display:block;width:100%;margin:6px 0;padding:9px 10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;text-align:left}
+    .sidebar .nav-link.active{outline:2px solid #60a5fa}
+    .content{padding:12px}
+    .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+    .toolbar input{flex:1;padding:8px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg)}
+    .pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:var(--card);cursor:pointer}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px}
+    .card-title{font-weight:600;margin:6px 8px 10px}
+    .view{display:none} .view.active{display:block}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-top:1px solid var(--line);padding:6px 8px;vertical-align:top}
+    th{position:sticky;top:0;background:var(--card);z-index:1}
+    tr.sep-row td{background:rgba(148,163,184,.16)}
+    .hit{outline:2px solid #f59e0b;outline-offset:-2px}
+    .nav-collapsed .sidebar{display:none}
   </style>
 </head>
 <body>
-  <div class="app" id="app">
-    <!-- Meniu (stânga) -->
-<aside class="sidebar" id="sidebar">
-  <button class="nav-link" data-section="s1">Chime S1–S52</button>
-  <button class="nav-link" data-section="s2">Curse spre XAR1</button>
-  <button class="nav-link" data-section="s3">Curse intermodale</button>
+  <div class="layout" id="appRoot">
+    <aside class="sidebar" id="sidebar">
+      <button class="nav-link active" data-section="s1">Chime S1–S52</button>
+      <button class="nav-link" data-section="s2">Curse spre XAR1</button>
+      <button class="nav-link" data-section="s3">Curse intermodale</button>
+      <hr>
+      <button id="wipeBtn" class="danger">Șterge datele locale</button>
+    </aside>
 
-  <hr>
-  <button id="wipeBtn" class="danger">Șterge datele locale</button>
-</aside>
+    <main class="content">
+      <div class="toolbar">
+        <input id="searchInput" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)"/>
+        <span id="searchCount" class="pill">0/0</span>
+        <button id="prevHit" class="pill" title="Anterior">↑</button>
+        <button id="nextHit" class="pill" title="Următor">↓</button>
+        <button id="toggleSidebar" class="pill" title="Ascunde/arată meniul">≡</button>
+        <button id="themeBtn" class="pill" title="Dark/Light">Dark</button>
+      </div>
 
-<!-- Conținut (dreapta) -->
-<main class="content">
-  <!-- bara de căutare + contor -->
-  <div class="searchbar">
-    <input id="searchInput" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)">
-    <span id="searchCount">0/0</span>
-    <button id="prevHit" title="Anterior">↑</button>
-    <button id="nextHit" title="Următor">↓</button>
-    <button id="toggleSidebar" title="Ascunde/arată meniul">≡</button>
-    <button id="themeBtn">Dark</button>
+      <section id="s1" class="view active">
+        <div class="card">
+          <div class="card-title">Chime S1–S52</div>
+          <div id="out-s1" class="out"></div>
+        </div>
+      </section>
+
+      <section id="s2" class="view">
+        <div class="card">
+          <div class="card-title">Curse spre XAR1</div>
+          <div id="out-s2" class="out"></div>
+        </div>
+      </section>
+
+      <section id="s3" class="view">
+        <div class="card">
+          <div class="card-title">Curse intermodale</div>
+          <div id="out-s3" class="out"></div>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <!-- S1 -->
-  <section id="s1" class="view active">
-    <div class="card">
-      <div class="card-title">Chime S1–S52</div>
-      <div id="out-s1" class="out"></div>
-    </div>
-  </section>
-
-  <!-- S2 -->
-  <section id="s2" class="view">
-    <div class="card">
-      <div class="card-title">Curse spre XAR1</div>
-      <div id="out-s2" class="out"></div>
-    </div>
-  </section>
-
-  <!-- S3 -->
-  <section id="s3" class="view">
-    <div class="card">
-      <div class="card-title">Curse intermodale</div>
-      <div id="out-s3" class="out"></div>
-    </div>
-  </section>
-</main>
-
-<!-- IMPORTANT: bump cache-bust aici -->
-<script defer src="./app.js?v=54"></script>
-
-
-  <script>
-    // Mic bootstrap de UI (dark + collapse + nav). Logica mare e în app.js.
-    (function(){
-      const app = document.getElementById('app');
-      const darkBtn = document.getElementById('darkBtn');
-      const collapseBtn = document.getElementById('collapseBtn');
-      const searchInput = document.getElementById('searchInput');
-      const searchCount = document.getElementById('searchCount');
-      const nextBtn = document.getElementById('nextBtn');
-      const prevBtn = document.getElementById('prevBtn');
-
-      // Dark
-      const THEME_KEY='app-theme';
-      function applyTheme(t){ document.body.classList.toggle('dark', t==='dark'); darkBtn.textContent = document.body.classList.contains('dark')?'Light':'Dark'; }
-      applyTheme(localStorage.getItem(THEME_KEY)||'light');
-      darkBtn.addEventListener('click', ()=>{
-        const nxt = document.body.classList.contains('dark')?'light':'dark';
-        localStorage.setItem(THEME_KEY, nxt); applyTheme(nxt);
-      });
-
-      // Collapse
-      collapseBtn.addEventListener('click', ()=> app.classList.toggle('collapsed'));
-
-      // Navegare
-      const views = [...document.querySelectorAll('.view')];
-      function show(id){
-        views.forEach(v=>v.classList.toggle('active', v.id===id));
-        document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active', b.dataset.section===id));
-        // anunță app.js (are hook-uri pentru încărcări)
-        document.dispatchEvent(new CustomEvent('view:change', { detail:{id} }));
-      }
-      document.querySelectorAll('.nav-link[data-section]').forEach(b=>{
-        b.addEventListener('click', ()=> show(b.dataset.section));
-      });
-
-      // Search UI – app.js se ocupă de highlight; aici doar forward controalele
-      nextBtn.addEventListener('click', ()=> document.dispatchEvent(new CustomEvent('search:next')));
-      prevBtn.addEventListener('click', ()=> document.dispatchEvent(new CustomEvent('search:prev')));
-      searchInput.addEventListener('input', e=> document.dispatchEvent(new CustomEvent('search:q',{detail:{q:e.target.value}})));
-
-      // App.js actualizează counterul
-      document.addEventListener('search:count', e=>{
-        const {idx,total} = e.detail||{idx:0,total:0};
-        searchCount.textContent = `${total?idx+1:0}/${total||0}`;
-      });
-
-      // pornește pe S1
-      show('s1');
-    })();
-  </script>
+  <!-- bump cache-bust aici -->
+  <script defer src="./app.js?v=56"></script>
 </body>
 </html>
