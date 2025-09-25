@@ -4,23 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Evolux – Vizualizator</title>
-
   <style>
     :root{
       --bg:#f7f8fb; --text:#0f172a; --card:#ffffff; --muted:#64748b;
       --border:#e5e7eb; --hit:#fff3cd; --row-alt:#f8fafc; --sep:#eef2f7; --sep-line:#e3e8f0;
     }
     body{ margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:var(--bg); color:var(--text); }
-    .layout{ display:grid; grid-template-columns:220px 1fr; min-height:100vh; }
-    aside{ background:var(--card); border-right:1px solid var(--border); padding:12px; }
+    .layout{ display:grid; grid-template-columns:220px 1fr; min-height:100vh; transition:grid-template-columns .18s ease; }
+    .layout.nav-collapsed{ grid-template-columns:0 1fr; }
+    aside{ background:var(--card); border-right:1px solid var(--border); padding:12px; overflow:hidden; }
     aside h3{ margin:8px 0; font-size:13px; color:var(--muted); }
     .btn{ display:inline-flex; align-items:center; justify-content:center; width:100%; padding:.6rem .8rem; border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
     .btn:active{ transform:translateY(1px); }
     .menu{ margin-top:8px; display:grid; gap:8px; }
     .menu .nav{ text-align:left; }
     .menu .nav.active{ outline:2px solid #111; }
-    main{ padding:16px 18px 48px; }
+    main{ padding:12px 18px 48px; }
     .toolbar{ display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+    .toolbar .ghost{ padding:8px 10px; border:1px solid var(--border); background:#fff; border-radius:10px; cursor:pointer; }
     .toolbar input[type="text"]{ flex:1; padding:10px 12px; border:1px solid var(--border); border-radius:999px; }
     .toolbar .ctr{ display:flex; gap:6px; align-items:center; }
     .toolbar .ctr button{ padding:6px 10px; border:1px solid var(--border); background:#fff; border-radius:8px; cursor:pointer; }
@@ -38,17 +39,27 @@
     .p12{ padding:12px; }
     .hidden{ display:none; }
 
-    /* Dark Mode */
+    /* Dark */
     body.dark{
       --bg:#0b1220; --text:#e5e7eb; --card:#0f172a; --muted:#94a3b8;
       --border:#1f2937; --row-alt:#0c162b; --sep:#0c1322; --sep-line:#142037; --hit:#3a2e00;
     }
-    body.dark .btn, body.dark .toolbar .ctr button{ background:var(--card); color:var(--text); }
+    body.dark .btn, body.dark .toolbar .ctr button, body.dark .toolbar .ghost{ background:var(--card); color:var(--text); }
     body.dark .menu .nav.active{ outline-color:#e5e7eb; }
+
+    /* mică “ureche” pentru meniul pliat, pe mobil/desktop */
+    #openNavHandle{
+      position:fixed; left:8px; top:14px; z-index:10;
+      padding:8px 10px; border:1px solid var(--border); background:var(--card); border-radius:10px; cursor:pointer;
+      display:none;
+    }
+    .layout.nav-collapsed #openNavHandle{ display:inline-flex; }
   </style>
 </head>
 <body>
-  <div class="layout">
+  <div id="openNavHandle" title="Deschide meniul">☰</div>
+
+  <div class="layout" id="appLayout">
     <aside>
       <button id="themeBtn" class="btn" style="margin-bottom:.5rem">Dark</button>
 
@@ -67,6 +78,7 @@
 
     <main>
       <div class="toolbar">
+        <button id="toggleNav" class="ghost" title="Pliază/Deschide meniul">⟨</button>
         <input id="searchInput" type="text" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)">
         <div class="ctr">
           <span id="searchCount" class="muted">0/0</span>
@@ -99,6 +111,6 @@
   </div>
 
   <!-- Crește numărul la fiecare modificare ca să spargi cache-ul -->
-  <script defer src="./app.js?v=51"></script>
+  <script defer src="./app.js?v=52"></script>
 </body>
 </html>
