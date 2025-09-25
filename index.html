@@ -4,86 +4,95 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Vizualizator tabele / liste</title>
-
   <style>
-    :root { --bg:#f6f7fb; --card:#fff; --text:#0b1220; --muted:#6b7280; --accent:#2563eb; --line:#e5e7eb; }
-    * { box-sizing: border-box }
-    body { margin:0; font-family: Inter, system-ui, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); }
-    .app { display:grid; grid-template-columns: 220px 1fr; min-height:100vh; }
-
-    /* Sidebar */
-    .nav { background:#fff; border-right:1px solid var(--line); padding:12px; }
-    .nav h3 { margin:8px 8px 12px; font-size:14px; color:var(--muted); }
-    .btn { display:block; width:100%; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#fff; cursor:pointer; margin-bottom:8px; }
-    .btn:hover { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.12) inset; }
-    .btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.18) inset; }
-    .danger { color:#b91c1c; border-color:#fecaca; background:#fff5f5; }
-
-    /* Content */
-    .wrap { padding:18px; }
-    .card { background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:0 6px 18px rgba(0,0,0,.06); }
-    header.card-h { display:flex; gap:12px; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); padding:14px 16px; }
-    header h1 { margin:0; font-size:16px; font-weight:650; }
-
-    .searchbar { display:flex; gap:8px; align-items:center; width:min(760px,100%); margin:0 auto; }
-    .searchbar input { width:100%; border:1px solid var(--line); border-radius:999px; padding:10px 14px; outline:none; }
-    .searchbar kbd { background:#f3f4f6; border:1px solid #e5e7eb; border-bottom-width:2px; padding:2px 6px; border-radius:6px; font-size:12px; color:#374151;}
-
-    .section { padding:16px; }
-    .hint { font-size:13px; color:var(--muted); margin:12px 0 0; }
-
-    table { width:100%; border-collapse: collapse; }
-    th, td { border:1px solid var(--line); padding:8px; vertical-align:top; }
-    th { background:#f8fafc; position:sticky; top:0; z-index:1; }
-    tr.sep td { background:#f1f5f9; font-weight:600; color:#334155; }
-    td.hit { outline:2px solid rgba(37,99,235,.55); outline-offset:-2px; background: #eef2ff; }
-
-    /* Dark mode */
-    body.dark { --bg:#0b1220; --card:#0f172a; --text:#e5e7eb; --muted:#9ca3af; --line:#1f2937; }
-    body.dark th { background:#111827; }
-    body.dark .nav, body.dark .btn { background:#0f172a; color:var(--text); }
-    body.dark .btn { border-color:#1f2937; }
-    body.dark .btn:hover, body.dark .btn.active { border-color:#334155; box-shadow:0 0 0 2px rgba(148,163,184,.18) inset; }
-    body.dark .danger { background:#1b0f12; border-color:#442327; color:#fecaca; }
+    :root{
+      --bg:#f6f7fb; --card:#fff; --text:#0f172a; --muted:#64748b; --accent:#2563eb;
+      --row-alt:#f3f4f6; --hit:#fff3cd; --sep:#eef2ff;
+    }
+    body{margin:0;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg);}
+    .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+    aside{background:#fff;border-right:1px solid #e5e7eb;padding:12px}
+    .brand{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    .btn{display:flex;align-items:center;gap:8px;width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:8px 10px;cursor:pointer}
+    .btn:hover{border-color:var(--accent);box-shadow:0 0 0 2px rgba(37,99,235,.1)}
+    .btn.active{outline:2px solid var(--accent)}
+    .danger{border-color:#fca5a5}
+    main{padding:16px}
+    .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+    .search{flex:1;display:flex;align-items:center;gap:6px}
+    .search input{width:100%;padding:10px 12px;border:1px solid #e5e7eb;border-radius:999px;outline:none}
+    .pill{font-size:12px;color:var(--muted)}
+    .card{background:var(--card);border:1px solid #e5e7eb;border-radius:14px;padding:14px;overflow:auto}
+    h2{margin:0 0 8px 0;font-size:16px}
+    table{width:100%;border-collapse:collapse}
+    thead th{position:sticky;top:0;z-index:1;background:#fafafa;border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}
+    tbody td{border-bottom:1px solid #f0f2f5;padding:8px;vertical-align:top}
+    tbody tr:nth-child(odd){background:#fafafa}
+    td.hit{background:var(--hit)}
+    .sep-row td{background:var(--sep)!important;font-weight:600;color:#475569}
+    /* dark */
+    body.dark{--bg:#0b1020;--card:#0f172a;--text:#e5e7eb;--muted:#93a3b8;--row-alt:#0c1226;--hit:#584f29;--sep:#101935}
+    body.dark aside{background:#0c1226;border-right-color:#1f2a44}
+    body.dark .btn{background:#0c1226;border-color:#1f2a44}
+    body.dark .btn:hover{box-shadow:none;border-color:#33447a}
+    body.dark thead th{background:#101935;border-bottom-color:#1f2a44}
+    body.dark tbody td{border-bottom-color:#101935}
   </style>
 
-  <!-- PapaParse: parser robust CSV -->
+  <!-- PapaParse – parser CSV robust -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script defer src="./app.js?v=43"></script>
+  <!-- App -->
+  <script defer src="./app.js?v=42"></script>
 </head>
-
 <body>
   <div class="app">
-    <aside class="nav">
-      <h3>Meniu</h3>
-      <button class="btn nav-link active" data-section="s1">Chime S1–S52</button>
-      <button class="btn nav-link" data-section="s2">Curse spre XAR1</button>
-      <button class="btn nav-link" data-section="s3">Curse intermodale</button>
-
-      <button id="clearLocal" class="btn danger">Șterge datele locale</button>
-      <div class="hint">Datele se încarcă din <code>/data/*.csv</code>. Butonul de mai sus șterge doar cache-ul local (ex. rezultatele căutărilor). Protejat cu PIN.</div>
+    <aside>
+      <div class="brand">
+        <button id="themeBtn" class="btn" title="Dark/Light">Dark</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn nav active" data-target="s1">Chime S1–S52</button>
+        <button class="btn nav" data-target="s2">Curse spre XAR1</button>
+        <button class="btn nav" data-target="s3">Curse intermodale</button>
+      </div>
+      <div style="margin-top:14px;font-size:12px;color:var(--muted)">
+        Datele se încarcă din <code>/data/*.csv</code>.<br/> Butonul de mai jos șterge doar cache-ul local.
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-direction:column">
+        <button id="clearLocal" class="btn danger">Șterge datele locale</button>
+      </div>
     </aside>
 
-    <main class="wrap">
-      <div class="card">
-        <header class="card-h">
-          <h1 id="title">Chime S1–S52</h1>
-          <div class="searchbar">
-            <input id="q" type="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
-            <kbd id="count">0/0</kbd>
-            <kbd id="prev">↑</kbd>
-            <kbd id="next">↓</kbd>
-            <button id="themeBtn" class="btn" style="width:auto;padding:6px 10px">Dark</button>
-          </div>
-        </header>
-
-        <section class="section">
-          <div id="view-s1" class="view"></div>
-          <div id="view-s2" class="view" hidden></div>
-          <div id="view-s3" class="view" hidden></div>
-          <div id="status" class="hint"></div>
-        </section>
+    <main>
+      <div class="toolbar">
+        <div class="search">
+          <input id="search" placeholder="Caută în tabelul curent… (Enter = următor, Shift+Enter = anterior)" />
+          <span class="pill" id="searchInfo">0/0</span>
+          <button class="btn" id="prevBtn" title="Previous">&#8593;</button>
+          <button class="btn" id="nextBtn" title="Next">&#8595;</button>
+        </div>
       </div>
+
+      <section id="s1" class="view">
+        <div class="card">
+          <h2>Chime S1–S52</h2>
+          <div id="out-s1"></div>
+        </div>
+      </section>
+
+      <section id="s2" class="view" hidden>
+        <div class="card">
+          <h2>Curse spre XAR1</h2>
+          <div id="out-s2"></div>
+        </div>
+      </section>
+
+      <section id="s3" class="view" hidden>
+        <div class="card">
+          <h2>Curse intermodale</h2>
+          <div id="out-s3">—</div>
+        </div>
+      </section>
     </main>
   </div>
 </body>
